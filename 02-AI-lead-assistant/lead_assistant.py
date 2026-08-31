@@ -2,73 +2,229 @@ from openai import OpenAI
 import sqlite3
 import json
 
-from fastapi import FastAPI
-from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from datetime import datetime, timedelta
+from pathlib import Path
 
 
 # =====================================
-# FASTAPI SETUP
-# =====================================
-
-app = FastAPI()
-
-
-# =====================================
-# OPENAI SETUP
+# SETTINGS
 # =====================================
 
 client = OpenAI()
+
+BASE_DIR = Path(__file__).resolve().parent
+DATABASE_PATH = BASE_DIR / "leads.db"
+
+
+# =====================================
+# DATABASE CONNECTION
+# =====================================
+
+def get_connection():
+
+    connection = sqlite3.connect(
+        DATABASE_PATH
+    )
+
+    connection.row_factory = sqlite3.Row
+
+    return connection
 
 
 # =====================================
 # DATABASE SETUP
 # =====================================
 
-conn = sqlite3.connect(
-    "leads.db",
-    check_same_thread=False
-)
+def setup_database():
 
-cursor = conn.cursor()
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS leads (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        customer_name TEXT,
+        phone_number TEXT,
+        email TEXT,
+        vehicle TEXT,
+        requested_service TEXT,
+        requested_time TEXT,
+        status TEXT DEFAULT 'New',
+        created_at TEXT
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS appointments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        customer_name TEXT,
+        phone_number TEXT,
+        vehicle TEXT,
+        service TEXT,
+        appointment_date TEXT,
+        appointment_time TEXT,
+        duration_minutes INTEGER,
+        status TEXT DEFAULT 'Booked',
+        created_at TEXT
+    )
+    """)
+
+    conn.commit()
+
+
+    try:
+
+        cursor.execute("""
+        ALTER TABLE leads
+        ADD COLUMN status TEXT DEFAULT 'New'
+        """)
+
+        conn.commit()
+
+    except sqlite3.OperationalError:
+        pass
+
+
+    try:
+
+        cursor.execute("""
+        ALTER TABLE leads
+        ADD COLUMN created_at TEXT
+        """)
+
+        conn.commit()
+
+    except sqlite3.OperationalError:
+        pass
+
+
+    try:
+
+        cursor.execute("""
+        ALTER TABLE appointments
+        ADD COLUMN duration_minutes INTEGER
+        """)
+
+        conn.commit()
+
+    except sqlite3.OperationalError:
+        pass
+
+
+    conn.close()
+
+
+setup_database()
 
 
 # =====================================
-# LEADS TABLE
+# GENERAL HELPERS
 # =====================================
 
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS leads (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    customer_name TEXT,
-    phone_number TEXT,
-    email TEXT,
-    vehicle TEXT,
-    requested_service TEXT,
-    requested_time TEXT
-)
-""")
+def current_timestamp():
+
+    return datetime.now().strftime(
+        "%Y-%m-%d %I:%M %p"
+    )
 
 
-# =====================================
-# CONVERSATION TABLE
-# =====================================
+def normalize_phone(phone_number):
 
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS conversations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    conversation_id TEXT NOT NULL,
-    role TEXT NOT NULL,
-    content TEXT NOT NULL
-)
-""")
+    if not phone_number:
+        return "Not provided"
 
-conn.commit()
+    if phone_number == "Not provided":
+        return "Not provided"
+
+    digits = ""
+
+    for character in phone_number:
+
+        if character.isdigit():
+            digits += character
+
+    return digits
 
 
 # =====================================
-# LEAD DATABASE FUNCTIONS
+# SERVICE DURATIONS
 # =====================================
+
+def get_service_duration(service):
+
+    service_lower = service.lower()
+
+    duration = None
+
+
+    if (
+        "full interior" in service_lower
+        and "exterior" in service_lower
+    ):
+
+        duration = 180
+
+
+    elif "interior detail" in service_lower:
+
+        duration = 120
+
+
+    elif "exterior detail" in service_lower:
+
+        duration = 90
+
+
+    if duration is not None:
+
+        if "pet hair" in service_lower:
+            duration += 30
+
+        if "seat shampoo" in service_lower:
+            duration += 30
+
+        if "headlight" in service_lower:
+            duration += 30
+
+
+    return duration
+
+
+# =====================================
+# LEAD FUNCTIONS
+# =====================================
+
+def find_lead(phone_number):
+
+    clean_phone = normalize_phone(
+        phone_number
+    )
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT *
+    FROM leads
+    """)
+
+    leads = cursor.fetchall()
+
+    conn.close()
+
+
+    for lead in leads:
+
+        stored_phone = normalize_phone(
+            lead["phone_number"]
+        )
+
+        if stored_phone == clean_phone:
+            return dict(lead)
+
+
+    return None
+
 
 def save_lead(
     customer_name,
@@ -78,6 +234,10 @@ def save_lead(
     requested_service,
     requested_time
 ):
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
     cursor.execute("""
     INSERT INTO leads (
         customer_name,
@@ -85,29 +245,24 @@ def save_lead(
         email,
         vehicle,
         requested_service,
-        requested_time
+        requested_time,
+        status,
+        created_at
     )
-    VALUES (?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         customer_name,
-        phone_number,
+        normalize_phone(phone_number),
         email,
         vehicle,
         requested_service,
-        requested_time
+        requested_time,
+        "New",
+        current_timestamp()
     ))
 
     conn.commit()
-
-
-def find_lead(phone_number):
-    cursor.execute("""
-    SELECT *
-    FROM leads
-    WHERE phone_number = ?
-    """, (phone_number,))
-
-    return cursor.fetchone()
+    conn.close()
 
 
 def update_lead(
@@ -118,94 +273,748 @@ def update_lead(
     requested_service,
     requested_time
 ):
+
+    existing_lead = find_lead(
+        phone_number
+    )
+
+    if not existing_lead:
+        return False
+
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
     cursor.execute("""
     UPDATE leads
+
     SET
         customer_name = ?,
+        phone_number = ?,
         email = ?,
         vehicle = ?,
         requested_service = ?,
         requested_time = ?
-    WHERE phone_number = ?
+
+    WHERE id = ?
     """, (
         customer_name,
+        normalize_phone(phone_number),
         email,
         vehicle,
         requested_service,
         requested_time,
-        phone_number
+        existing_lead["id"]
     ))
 
     conn.commit()
+    conn.close()
+
+    return True
 
 
-# =====================================
-# CONVERSATION DATABASE FUNCTIONS
-# =====================================
+def get_all_leads():
 
-def save_message(
-    conversation_id,
-    role,
-    content
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT *
+    FROM leads
+    ORDER BY id DESC
+    """)
+
+    results = cursor.fetchall()
+
+    conn.close()
+
+    return [
+        dict(row)
+        for row in results
+    ]
+
+
+def update_lead_status(
+    lead_id,
+    new_status
 ):
+
+    allowed_statuses = [
+        "New",
+        "Contacted",
+        "Booked",
+        "Completed",
+        "Lost"
+    ]
+
+
+    if new_status not in allowed_statuses:
+        return False
+
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
     cursor.execute("""
-    INSERT INTO conversations (
-        conversation_id,
-        role,
-        content
-    )
-    VALUES (?, ?, ?)
+    UPDATE leads
+    SET status = ?
+    WHERE id = ?
     """, (
-        conversation_id,
-        role,
-        content
+        new_status,
+        lead_id
     ))
 
     conn.commit()
+    conn.close()
+
+    return True
 
 
-def get_conversation(conversation_id):
+def delete_lead(lead_id):
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
     cursor.execute("""
-    SELECT role, content
-    FROM conversations
-    WHERE conversation_id = ?
-    ORDER BY id ASC
-    """, (conversation_id,))
+    DELETE FROM leads
+    WHERE id = ?
+    """, (
+        lead_id,
+    ))
 
-    rows = cursor.fetchall()
-
-    conversation = []
-
-    for row in rows:
-        conversation.append({
-            "role": row[0],
-            "content": row[1]
-        })
-
-    return conversation
+    conn.commit()
+    conn.close()
 
 
 # =====================================
-# PHONE CLEANING
+# BUSINESS HOURS
 # =====================================
 
-def normalize_phone(phone_number):
-    if not phone_number:
-        return "Not provided"
+def get_business_hours(
+    appointment_date
+):
 
-    if phone_number == "Not provided":
-        return "Not provided"
+    try:
 
-    digits = ""
+        date_object = datetime.strptime(
+            appointment_date,
+            "%Y-%m-%d"
+        )
 
-    for character in phone_number:
-        if character.isdigit():
-            digits += character
+    except ValueError:
 
-    if not digits:
-        return "Not provided"
+        return None
 
-    return digits
+
+    weekday = date_object.weekday()
+
+
+    # Monday-Friday
+    if weekday <= 4:
+
+        return {
+            "open": "09:00",
+            "close": "18:00"
+        }
+
+
+    # Saturday
+    if weekday == 5:
+
+        return {
+            "open": "10:00",
+            "close": "16:00"
+        }
+
+
+    # Sunday
+    return None
+
+
+# =====================================
+# APPOINTMENT VALIDATION
+# =====================================
+
+def validate_appointment_time(
+    appointment_date,
+    appointment_time,
+    service
+):
+
+    try:
+
+        requested_start = datetime.strptime(
+            f"{appointment_date} {appointment_time}",
+            "%Y-%m-%d %H:%M"
+        )
+
+    except ValueError:
+
+        return {
+            "valid": False,
+            "reason":
+                "I need a valid date and time before I can book that."
+        }
+
+
+    if requested_start < datetime.now():
+
+        return {
+            "valid": False,
+            "reason":
+                "That appointment time has already passed."
+        }
+
+
+    hours = get_business_hours(
+        appointment_date
+    )
+
+
+    if hours is None:
+
+        return {
+            "valid": False,
+            "reason":
+                "We're closed that day."
+        }
+
+
+    duration = get_service_duration(
+        service
+    )
+
+
+    if duration is None:
+
+        return {
+            "valid": False,
+            "reason":
+                "A team member needs to confirm the duration of that service before booking it."
+        }
+
+
+    opening_time = datetime.strptime(
+        f"{appointment_date} {hours['open']}",
+        "%Y-%m-%d %H:%M"
+    )
+
+
+    closing_time = datetime.strptime(
+        f"{appointment_date} {hours['close']}",
+        "%Y-%m-%d %H:%M"
+    )
+
+
+    requested_end = (
+        requested_start
+        + timedelta(
+            minutes=duration
+        )
+    )
+
+
+    if requested_start < opening_time:
+
+        return {
+            "valid": False,
+            "reason":
+                "That time is before we open."
+        }
+
+
+    if requested_end > closing_time:
+
+        return {
+            "valid": False,
+            "reason":
+                "That service would run past closing time."
+        }
+
+
+    return {
+        "valid": True,
+        "start": requested_start,
+        "end": requested_end,
+        "duration": duration
+    }
+
+
+# =====================================
+# GET APPOINTMENTS
+# =====================================
+
+def get_all_appointments():
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT *
+    FROM appointments
+
+    ORDER BY
+        appointment_date,
+        appointment_time
+    """)
+
+    results = cursor.fetchall()
+
+    conn.close()
+
+    return [
+        dict(row)
+        for row in results
+    ]
+
+
+def get_appointments_for_date(
+    appointment_date
+):
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT *
+    FROM appointments
+
+    WHERE appointment_date = ?
+    AND status != 'Cancelled'
+
+    ORDER BY appointment_time
+    """, (
+        appointment_date,
+    ))
+
+    results = cursor.fetchall()
+
+    conn.close()
+
+    return [
+        dict(row)
+        for row in results
+    ]
+
+
+# =====================================
+# CONFLICT CHECK
+# =====================================
+
+def appointment_slot_available(
+    appointment_date,
+    appointment_time,
+    service
+):
+
+    validation = validate_appointment_time(
+        appointment_date,
+        appointment_time,
+        service
+    )
+
+
+    if not validation["valid"]:
+
+        return validation
+
+
+    requested_start = validation["start"]
+    requested_end = validation["end"]
+
+
+    appointments = get_appointments_for_date(
+        appointment_date
+    )
+
+
+    for appointment in appointments:
+
+        try:
+
+            existing_start = datetime.strptime(
+                (
+                    f"{appointment['appointment_date']} "
+                    f"{appointment['appointment_time']}"
+                ),
+                "%Y-%m-%d %H:%M"
+            )
+
+        except ValueError:
+
+            continue
+
+
+        existing_duration = (
+            appointment[
+                "duration_minutes"
+            ]
+            or 120
+        )
+
+
+        existing_end = (
+            existing_start
+            + timedelta(
+                minutes=existing_duration
+            )
+        )
+
+
+        overlap = (
+            requested_start < existing_end
+            and requested_end > existing_start
+        )
+
+
+        if overlap:
+
+            return {
+                "valid": False,
+                "reason":
+                    "That appointment overlaps with another booking."
+            }
+
+
+    return validation
+
+
+# =====================================
+# FIND AVAILABLE TIMES
+# =====================================
+
+def find_available_slots(
+    starting_date,
+    service,
+    max_slots=3,
+    days_to_search=7
+):
+
+    duration = get_service_duration(
+        service
+    )
+
+
+    if duration is None:
+        return []
+
+
+    try:
+
+        search_date = datetime.strptime(
+            starting_date,
+            "%Y-%m-%d"
+        )
+
+    except ValueError:
+
+        return []
+
+
+    available_slots = []
+
+
+    for day_offset in range(
+        days_to_search
+    ):
+
+        day = (
+            search_date
+            + timedelta(
+                days=day_offset
+            )
+        )
+
+
+        date_string = day.strftime(
+            "%Y-%m-%d"
+        )
+
+
+        hours = get_business_hours(
+            date_string
+        )
+
+
+        if hours is None:
+            continue
+
+
+        opening = datetime.strptime(
+            f"{date_string} {hours['open']}",
+            "%Y-%m-%d %H:%M"
+        )
+
+
+        closing = datetime.strptime(
+            f"{date_string} {hours['close']}",
+            "%Y-%m-%d %H:%M"
+        )
+
+
+        slot = opening
+
+
+        # If searching today,
+        # don't suggest times that already passed
+
+        if day.date() == datetime.now().date():
+
+            while slot < datetime.now():
+
+                slot += timedelta(
+                    minutes=30
+                )
+
+
+        while (
+            slot
+            + timedelta(
+                minutes=duration
+            )
+            <= closing
+        ):
+
+            time_string = slot.strftime(
+                "%H:%M"
+            )
+
+
+            availability = appointment_slot_available(
+                date_string,
+                time_string,
+                service
+            )
+
+
+            if availability["valid"]:
+
+                available_slots.append({
+                    "date":
+                        date_string,
+
+                    "time":
+                        time_string
+                })
+
+
+                if (
+                    len(
+                        available_slots
+                    )
+                    >= max_slots
+                ):
+
+                    return available_slots
+
+
+            slot += timedelta(
+                minutes=30
+            )
+
+
+    return available_slots
+
+
+# =====================================
+# FORMAT AVAILABLE TIMES
+# =====================================
+
+def format_available_slots(
+    slots
+):
+
+    if not slots:
+
+        return (
+            "I couldn't find an open appointment "
+            "within the next week."
+        )
+
+
+    formatted = []
+
+
+    for slot in slots:
+
+        date_object = datetime.strptime(
+            slot["date"],
+            "%Y-%m-%d"
+        )
+
+
+        time_object = datetime.strptime(
+            slot["time"],
+            "%H:%M"
+        )
+
+
+        readable_date = date_object.strftime(
+            "%A, %B %d"
+        )
+
+
+        readable_time = time_object.strftime(
+            "%I:%M %p"
+        ).lstrip("0")
+
+
+        formatted.append(
+            f"{readable_date} at {readable_time}"
+        )
+
+
+    return (
+        "The next available times are: "
+        + ", ".join(formatted)
+        + "."
+    )
+
+
+# =====================================
+# CREATE APPOINTMENT
+# =====================================
+
+def create_appointment(
+    customer_name,
+    phone_number,
+    vehicle,
+    service,
+    appointment_date,
+    appointment_time
+):
+
+    availability = appointment_slot_available(
+        appointment_date,
+        appointment_time,
+        service
+    )
+
+
+    if not availability["valid"]:
+
+        alternatives = find_available_slots(
+            appointment_date,
+            service,
+            max_slots=3,
+            days_to_search=7
+        )
+
+
+        return {
+            "success": False,
+
+            "reason":
+                availability["reason"],
+
+            "alternatives":
+                alternatives
+        }
+
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+
+    cursor.execute("""
+    INSERT INTO appointments (
+        customer_name,
+        phone_number,
+        vehicle,
+        service,
+        appointment_date,
+        appointment_time,
+        duration_minutes,
+        status,
+        created_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        customer_name,
+        normalize_phone(
+            phone_number
+        ),
+        vehicle,
+        service,
+        appointment_date,
+        appointment_time,
+        availability[
+            "duration"
+        ],
+        "Booked",
+        current_timestamp()
+    ))
+
+
+    conn.commit()
+    conn.close()
+
+
+    return {
+        "success": True
+    }
+
+
+# =====================================
+# APPOINTMENT MANAGEMENT
+# =====================================
+
+def update_appointment_status(
+    appointment_id,
+    new_status
+):
+
+    allowed_statuses = [
+        "Booked",
+        "Completed",
+        "Cancelled"
+    ]
+
+
+    if new_status not in allowed_statuses:
+        return False
+
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+
+    cursor.execute("""
+    UPDATE appointments
+
+    SET status = ?
+
+    WHERE id = ?
+    """, (
+        new_status,
+        appointment_id
+    ))
+
+
+    conn.commit()
+    conn.close()
+
+    return True
+
+
+def delete_appointment(
+    appointment_id
+):
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+
+    cursor.execute("""
+    DELETE FROM appointments
+    WHERE id = ?
+    """, (
+        appointment_id,
+    ))
+
+
+    conn.commit()
+    conn.close()
 
 
 # =====================================
@@ -213,158 +1022,179 @@ def normalize_phone(phone_number):
 # =====================================
 
 business_info = """
-BUSINESS: Freedom Auto Detailing
+BUSINESS:
+Freedom Auto Detailing
 
-SERVICES:
-Interior Detail - $120
-Exterior Detail - $80
-Full Interior + Exterior Detail - $180
-
-ADD-ONS:
-Pet Hair Removal - $40
-Seat Shampoo - $35
-Headlight Restoration - $50
-
-HOURS:
-Monday-Friday: 9 AM - 6 PM
-Saturday: 10 AM - 4 PM
-Sunday: Closed
-
-SERVICE AREA:
+LOCATION:
 Columbus, Ohio
 
-RULES:
-Never invent a price.
-If a customer requests something not listed,
-say that a team member needs to confirm availability and pricing.
+SERVICES:
+
+Interior Detail - $120
+Estimated duration: 2 hours
+
+Exterior Detail - $80
+Estimated duration: 1.5 hours
+
+Full Interior + Exterior Detail - $180
+Estimated duration: 3 hours
+
+ADD-ONS:
+
+Pet Hair Removal - $40
+Adds approximately 30 minutes
+
+Seat Shampoo - $35
+Adds approximately 30 minutes
+
+Headlight Restoration - $50
+Adds approximately 30 minutes
+
+BUSINESS HOURS:
+
+Monday-Friday:
+9 AM - 6 PM
+
+Saturday:
+10 AM - 4 PM
+
+Sunday:
+Closed
+
+BOOKING RULES:
+
+Appointments are only confirmed after the backend
+successfully creates the appointment.
+
+Never claim an appointment is booked before receiving
+confirmation from the booking system.
+
+Never invent availability.
+
+Never invent prices.
 """
 
 
 # =====================================
-# REQUEST MODEL
+# CUSTOMER SESSION MEMORY
 # =====================================
 
-class CustomerMessage(BaseModel):
-    conversation_id: str
-    message: str
+conversations = {}
 
 
 # =====================================
-# HOME ROUTE
+# AI ASSISTANT
 # =====================================
 
-@app.get("/")
-def home():
-    return {
-        "message": "AI Lead Assistant API is running"
-    }
-@app.get("/demo")
-def demo():
-    return FileResponse("chat.html")
+def process_customer_message(
+    customer_message,
+    session_id
+):
 
-# =====================================
-# CHAT ROUTE
-# =====================================
+    if session_id not in conversations:
 
-@app.post("/chat")
-def chat(customer: CustomerMessage):
+        conversations[
+            session_id
+        ] = []
 
-    conversation_id = customer.conversation_id
-    customer_message = customer.message
 
-    # =====================================
-    # SAVE CUSTOMER MESSAGE
-    # =====================================
+    conversation = conversations[
+        session_id
+    ]
 
-    save_message(
-        conversation_id,
-        "user",
-        customer_message
+
+    conversation.append({
+        "role": "user",
+        "content": customer_message
+    })
+
+
+    today = datetime.now().strftime(
+        "%Y-%m-%d"
     )
 
-    # =====================================
-    # LOAD THIS CUSTOMER'S HISTORY
-    # =====================================
-
-    conversation = get_conversation(
-        conversation_id
-    )
-
-    # =====================================
-    # SEND CONVERSATION TO OPENAI
-    # =====================================
 
     response = client.responses.create(
         model="gpt-5.4-mini",
 
         instructions=f"""
-You are a lead assistant for a local car detailing business.
+You are the customer-facing AI receptionist
+for Freedom Auto Detailing.
 
-Here is the business information you must follow:
+Today's date is:
+
+{today}
+
+BUSINESS INFORMATION:
 
 {business_info}
 
-Return ONLY valid JSON using exactly this structure:
+
+Return ONLY valid JSON:
 
 {{
-    "lead_type": "",
     "customer_name": "",
     "phone_number": "",
     "email": "",
     "vehicle": "",
     "requested_service": "",
     "requested_time": "",
-    "missing_information": "",
+    "appointment_date": "",
+    "appointment_time": "",
+    "wants_booking": false,
     "suggested_reply": ""
 }}
 
+
 RULES:
 
-- Use ONLY the business information provided above.
-- Never invent a price, service, hour, or policy.
-- If the customer asks for something not listed,
-  say a team member must confirm it.
+- Unknown values must be exactly:
+  "Not provided"
 
-- If information is unknown, use "Not provided".
-- Never invent a customer name, phone number, or email.
+- Remember information earlier
+  in THIS conversation.
 
-- Remember information provided earlier in THIS
-  customer's conversation.
+- Never invent customer information.
 
-- Do not repeatedly ask for information already provided.
+- Never invent prices.
 
-- Try to collect:
-  - Customer name
-  - Phone number or email
-  - Vehicle
-  - Requested service
-  - Requested date/time
+- Never invent availability.
 
-- The Suggested Reply should be friendly,
-  professional, and short.
+- Never claim an appointment is confirmed
+  until the backend confirms it.
 
-- NEVER tell a customer that an appointment is booked,
-  scheduled, confirmed, or "all set" unless a real
-  booking system has successfully confirmed the appointment.
+- Convert relative dates such as:
+  tomorrow,
+  Saturday,
+  next Monday
 
-- Requested dates and times are ONLY requests
-  until confirmed.
+  into YYYY-MM-DD.
 
-- If there is no booking confirmation,
-  tell the customer their appointment request
-  still needs confirmation.
+- appointment_date format:
+  YYYY-MM-DD
 
-- Return ONLY valid JSON.
-- Do not include markdown.
-- Do not put anything outside the JSON.
+- appointment_time format:
+  HH:MM
+
+- 2 PM becomes:
+  14:00
+
+- wants_booking is true only when
+  the customer clearly wants the appointment booked.
+
+- Asking whether a time is available
+  does NOT mean they want it booked.
+
+- Suggested replies should be short,
+  friendly,
+  and professional.
+
+- Return ONLY JSON.
 """,
 
         input=conversation
     )
 
-    # =====================================
-    # PROCESS AI RESPONSE
-    # =====================================
 
     try:
 
@@ -372,105 +1202,311 @@ RULES:
             response.output_text
         )
 
-        suggested_reply = lead_data[
-            "suggested_reply"
+
+    except json.JSONDecodeError:
+
+        return {
+            "response":
+                "Sorry, I had trouble processing that message.",
+
+            "lead_status":
+                "error",
+
+            "booking_status":
+                "none"
+        }
+
+
+    phone_number = normalize_phone(
+        lead_data[
+            "phone_number"
+        ]
+    )
+
+
+    suggested_reply = lead_data[
+        "suggested_reply"
+    ]
+
+
+    lead_status = "collecting"
+
+    booking_status = "none"
+
+
+    # =====================================
+    # SAVE / UPDATE LEAD
+    # =====================================
+
+    lead_complete = (
+
+        lead_data[
+            "customer_name"
+        ]
+        != "Not provided"
+
+        and
+
+        phone_number
+        != "Not provided"
+
+        and
+
+        lead_data[
+            "vehicle"
+        ]
+        != "Not provided"
+
+        and
+
+        lead_data[
+            "requested_service"
+        ]
+        != "Not provided"
+
+    )
+
+
+    if lead_complete:
+
+        existing_lead = find_lead(
+            phone_number
+        )
+
+
+        if existing_lead:
+
+            update_lead(
+
+                lead_data[
+                    "customer_name"
+                ],
+
+                phone_number,
+
+                lead_data[
+                    "email"
+                ],
+
+                lead_data[
+                    "vehicle"
+                ],
+
+                lead_data[
+                    "requested_service"
+                ],
+
+                lead_data[
+                    "requested_time"
+                ]
+
+            )
+
+            lead_status = "updated"
+
+
+        else:
+
+            save_lead(
+
+                lead_data[
+                    "customer_name"
+                ],
+
+                phone_number,
+
+                lead_data[
+                    "email"
+                ],
+
+                lead_data[
+                    "vehicle"
+                ],
+
+                lead_data[
+                    "requested_service"
+                ],
+
+                lead_data[
+                    "requested_time"
+                ]
+
+            )
+
+            lead_status = "saved"
+
+
+    # =====================================
+    # BOOKING
+    # =====================================
+
+    wants_booking = lead_data.get(
+        "wants_booking",
+        False
+    )
+
+
+    appointment_date = lead_data.get(
+        "appointment_date",
+        "Not provided"
+    )
+
+
+    appointment_time = lead_data.get(
+        "appointment_time",
+        "Not provided"
+    )
+
+
+    booking_ready = (
+
+        wants_booking is True
+
+        and
+
+        lead_complete
+
+        and
+
+        appointment_date
+        not in [
+            "",
+            "Not provided"
         ]
 
-        # =====================================
-        # SAVE AI RESPONSE TO DATABASE
-        # =====================================
+        and
 
-        save_message(
-            conversation_id,
-            "assistant",
-            suggested_reply
+        appointment_time
+        not in [
+            "",
+            "Not provided"
+        ]
+
+    )
+
+
+    if booking_ready:
+
+        result = create_appointment(
+
+            lead_data[
+                "customer_name"
+            ],
+
+            phone_number,
+
+            lead_data[
+                "vehicle"
+            ],
+
+            lead_data[
+                "requested_service"
+            ],
+
+            appointment_date,
+
+            appointment_time
+
         )
 
-        # =====================================
-        # CLEAN PHONE NUMBER
-        # =====================================
 
-        phone_number = normalize_phone(
-            lead_data["phone_number"]
-        )
+        # =================================
+        # BOOKED
+        # =================================
 
-        lead_status = "collecting_information"
+        if result["success"]:
 
-        # =====================================
-        # CHECK IF LEAD IS READY
-        # =====================================
+            booking_status = "booked"
 
-        if (
-            lead_data["customer_name"] != "Not provided"
-            and phone_number != "Not provided"
-            and lead_data["vehicle"] != "Not provided"
-            and lead_data["requested_service"] != "Not provided"
-        ):
+
+            readable_date = datetime.strptime(
+                appointment_date,
+                "%Y-%m-%d"
+            ).strftime(
+                "%A, %B %d"
+            )
+
+
+            readable_time = datetime.strptime(
+                appointment_time,
+                "%H:%M"
+            ).strftime(
+                "%I:%M %p"
+            ).lstrip("0")
+
+
+            suggested_reply = (
+
+                f"You're confirmed for "
+                f"{readable_date} at "
+                f"{readable_time} for "
+                f"{lead_data['requested_service']}. "
+                f"We'll see you then!"
+
+            )
+
 
             existing_lead = find_lead(
                 phone_number
             )
 
-            # =====================================
-            # RETURNING LEAD
-            # =====================================
 
             if existing_lead:
 
-                update_lead(
-                    lead_data["customer_name"],
-                    phone_number,
-                    lead_data["email"],
-                    lead_data["vehicle"],
-                    lead_data["requested_service"],
-                    lead_data["requested_time"]
+                update_lead_status(
+                    existing_lead[
+                        "id"
+                    ],
+                    "Booked"
                 )
 
-                lead_status = "updated"
 
-            # =====================================
-            # NEW LEAD
-            # =====================================
+        # =================================
+        # NOT AVAILABLE
+        # =================================
 
-            else:
+        else:
 
-                save_lead(
-                    lead_data["customer_name"],
-                    phone_number,
-                    lead_data["email"],
-                    lead_data["vehicle"],
-                    lead_data["requested_service"],
-                    lead_data["requested_time"]
+            booking_status = "unavailable"
+
+
+            alternative_text = (
+                format_available_slots(
+                    result[
+                        "alternatives"
+                    ]
                 )
+            )
 
-                lead_status = "saved"
 
-        # =====================================
-        # RETURN API RESPONSE
-        # =====================================
+            suggested_reply = (
 
-        return {
-            "conversation_id": conversation_id,
-            "reply": suggested_reply,
-            "lead_status": lead_status
-        }
+                result["reason"]
+                + " "
+                + alternative_text
+
+            )
+
 
     # =====================================
-    # INVALID JSON SAFETY
+    # SAVE RESPONSE TO MEMORY
     # =====================================
 
-    except json.JSONDecodeError:
+    conversation.append({
+        "role": "assistant",
+        "content": suggested_reply
+    })
 
-        return {
-            "conversation_id": conversation_id,
-            "error": "AI returned invalid JSON.",
-            "raw_response": response.output_text
-        }
 
-    except KeyError as error:
+    return {
 
-        return {
-            "conversation_id": conversation_id,
-            "error": "AI response was missing a required field.",
-            "missing_field": str(error)
-        }
+        "response":
+            suggested_reply,
+
+        "lead_status":
+            lead_status,
+
+        "booking_status":
+            booking_status
+
+    }

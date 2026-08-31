@@ -1,12 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
 
     <title>Freedom Auto Detailing</title>
 
     <style>
+
         * {
             box-sizing: border-box;
         }
@@ -14,402 +20,947 @@
         body {
             margin: 0;
             min-height: 100vh;
-            font-family: Arial, sans-serif;
-            background: #0b0d10;
-            color: white;
+
             display: flex;
-            justify-content: center;
             align-items: center;
-            padding: 20px;
+            justify-content: center;
+
+            background: #0f1115;
+            color: white;
+
+            font-family: Arial, sans-serif;
         }
 
         .chat-container {
-            width: 100%;
-            max-width: 460px;
-            height: 720px;
-            max-height: 90vh;
-            background: #15181d;
-            border: 1px solid #2a2f37;
-            border-radius: 20px;
-            overflow: hidden;
+            width: 460px;
+            height: 680px;
+
             display: flex;
             flex-direction: column;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+
+            background: #171a20;
+
+            border: 1px solid #2d333d;
+            border-radius: 18px;
+
+            overflow: hidden;
         }
 
-        .header {
-            padding: 20px;
-            background: #1d2128;
-            border-bottom: 1px solid #2a2f37;
+        .chat-header {
+            padding: 22px;
+
+            background: #1f232b;
+
+            border-bottom: 1px solid #343a45;
         }
 
-        .business-name {
-            font-size: 20px;
-            font-weight: bold;
+        .chat-header h1 {
+            margin: 0;
+
+            font-size: 23px;
         }
 
-        .status {
-            margin-top: 5px;
-            font-size: 13px;
-            color: #9ca3af;
+        .online {
+            margin-top: 7px;
+
+            color: #9aa4b4;
+
+            font-size: 14px;
         }
 
-        .status-dot {
+        .online-dot {
             display: inline-block;
-            width: 8px;
-            height: 8px;
-            background: #22c55e;
+
+            width: 9px;
+            height: 9px;
+
+            margin-right: 7px;
+
             border-radius: 50%;
-            margin-right: 5px;
+
+            background: #27d17f;
         }
 
-        .messages {
+        #messages {
             flex: 1;
+
             padding: 18px;
+
             overflow-y: auto;
+
+            scroll-behavior: smooth;
+        }
+
+        .message-row {
+            display: flex;
+
+            margin-bottom: 12px;
+        }
+
+        .message-row.user {
+            justify-content: flex-end;
+        }
+
+        .message-row.bot {
+            justify-content: flex-start;
         }
 
         .message {
             max-width: 82%;
-            padding: 11px 14px;
-            margin-bottom: 12px;
-            border-radius: 14px;
+
+            padding: 13px 15px;
+
+            border-radius: 15px;
+
             line-height: 1.4;
-            font-size: 15px;
-            word-wrap: break-word;
+
+            font-size: 16px;
+
+            white-space: pre-wrap;
         }
 
-        .bot {
-            background: #252a32;
-            margin-right: auto;
-            border-bottom-left-radius: 4px;
+        .message.user {
+            background: #2f6fed;
+
+            color: white;
+
+            border-bottom-right-radius: 5px;
         }
 
-        .customer {
-            background: #2563eb;
-            margin-left: auto;
-            border-bottom-right-radius: 4px;
+        .message.bot {
+            background: #292e38;
+
+            color: white;
+
+            border-bottom-left-radius: 5px;
         }
 
-        .typing {
-            color: #9ca3af;
-            font-style: italic;
+        /* ==================================
+           AVAILABLE TIME BUTTONS
+        ================================== */
+
+        .slot-wrapper {
+            margin-top: 10px;
+
+            display: flex;
+            flex-wrap: wrap;
+
+            gap: 8px;
         }
+
+        .slot-button {
+            border: 1px solid #3f7cff;
+
+            background: #161b24;
+
+            color: #82aaff;
+
+            padding: 9px 12px;
+
+            border-radius: 9px;
+
+            cursor: pointer;
+
+            font-size: 14px;
+
+            transition: 0.15s;
+        }
+
+        .slot-button:hover {
+            background: #2f6fed;
+
+            color: white;
+
+            transform: translateY(-1px);
+        }
+
+        .slot-button:disabled {
+            opacity: 0.5;
+
+            cursor: default;
+
+            transform: none;
+        }
+
+        /* ==================================
+           STATUS MESSAGE
+        ================================== */
+
+        #status {
+            padding: 0 18px 10px;
+
+            color: #8290a6;
+
+            font-size: 12px;
+        }
+
+        /* ==================================
+           INPUT AREA
+        ================================== */
 
         .input-area {
             display: flex;
+
             gap: 8px;
-            padding: 14px;
-            background: #1d2128;
-            border-top: 1px solid #2a2f37;
+
+            padding: 15px;
+
+            border-top: 1px solid #343a45;
+
+            background: #1f232b;
         }
 
         #messageInput {
             flex: 1;
+
             min-width: 0;
-            border: 1px solid #343a44;
-            background: #101216;
-            color: white;
-            padding: 13px;
+
+            padding: 12px 14px;
+
+            background: #101318;
+
+            border: 1px solid #3b4452;
+
             border-radius: 10px;
+
             outline: none;
-            font-size: 15px;
+
+            color: white;
+
+            font-size: 14px;
         }
 
         #messageInput:focus {
-            border-color: #2563eb;
-        }
-
-        #messageInput::placeholder {
-            color: #777f8c;
+            border-color: #2f6fed;
         }
 
         #sendButton {
+            padding: 0 20px;
+
             border: none;
-            padding: 0 18px;
             border-radius: 10px;
-            background: #2563eb;
+
+            background: #2f6fed;
+
             color: white;
+
             font-weight: bold;
+
             cursor: pointer;
         }
 
         #sendButton:hover {
-            background: #1d4ed8;
+            background: #3d7cff;
         }
 
         #sendButton:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
+            opacity: 0.6;
+
+            cursor: default;
         }
 
         .footer {
+            padding: 0 15px 10px;
+
+            background: #1f232b;
+
+            color: #718099;
+
             text-align: center;
+
             font-size: 11px;
-            color: #6b7280;
-            padding: 8px;
-            background: #1d2128;
         }
 
-        @media (max-width: 600px) {
+        @media (max-width: 520px) {
+
             body {
-                padding: 0;
+                align-items: stretch;
             }
 
             .chat-container {
-                max-width: none;
+                width: 100%;
                 height: 100vh;
-                max-height: none;
+
                 border-radius: 0;
                 border: none;
             }
         }
+
     </style>
 </head>
 
+
 <body>
 
-<div class="chat-container">
+    <div class="chat-container">
 
-    <div class="header">
-        <div class="business-name">
-            Freedom Auto Detailing
+        <div class="chat-header">
+
+            <h1>
+                Freedom Auto Detailing
+            </h1>
+
+            <div class="online">
+
+                <span class="online-dot"></span>
+
+                AI Assistant Online
+
+            </div>
+
         </div>
 
-        <div class="status">
-            <span class="status-dot"></span>
-            AI Assistant Online
+
+        <div id="messages">
+
+            <div class="message-row bot">
+
+                <div class="message bot">
+Hey! 👋 Welcome to Freedom Auto Detailing. How can I help with your vehicle today?
+                </div>
+
+            </div>
+
         </div>
-    </div>
 
-    <div class="messages" id="messages">
-        <div class="message bot">
-            Hey! 👋 Welcome to Freedom Auto Detailing. How can I help with your vehicle today?
+
+        <div id="status"></div>
+
+
+        <div class="input-area">
+
+            <input
+                id="messageInput"
+                type="text"
+                placeholder="Ask about detailing..."
+                autocomplete="off"
+            >
+
+            <button
+                id="sendButton"
+                type="button"
+            >
+                Send
+            </button>
+
         </div>
-    </div>
 
-    <div class="input-area">
 
-        <input
-            id="messageInput"
-            type="text"
-            placeholder="Ask about detailing..."
-            autocomplete="off"
-        >
-
-        <button
-            id="sendButton"
-            onclick="sendMessage()"
-        >
-            Send
-        </button>
+        <div class="footer">
+            AI assistant • Appointment requests require confirmation
+        </div>
 
     </div>
 
-    <div class="footer">
-        AI assistant • Appointment requests require confirmation
-    </div>
 
-</div>
+    <script>
 
+        // ==================================
+        // SESSION
+        // ==================================
 
-<script>
-
-    // =====================================
-    // CONVERSATION ID
-    // =====================================
-
-    let conversationId =
-        localStorage.getItem("conversation_id");
-
-    if (!conversationId) {
-
-        conversationId =
-            "customer-" + crypto.randomUUID();
-
-        localStorage.setItem(
-            "conversation_id",
-            conversationId
-        );
-    }
+        let sessionId =
+            sessionStorage.getItem(
+                "freedom_session_id"
+            );
 
 
-    // =====================================
-    // PAGE ELEMENTS
-    // =====================================
+        if (!sessionId) {
 
-    const input =
-        document.getElementById("messageInput");
+            sessionId =
+                crypto.randomUUID();
 
-    const sendButton =
-        document.getElementById("sendButton");
+            sessionStorage.setItem(
+                "freedom_session_id",
+                sessionId
+            );
 
-    const messages =
-        document.getElementById("messages");
-
-
-    // =====================================
-    // ADD MESSAGE
-    // =====================================
-
-    function addMessage(text, sender) {
-
-        const message =
-            document.createElement("div");
-
-        message.classList.add(
-            "message",
-            sender
-        );
-
-        message.textContent = text;
-
-        messages.appendChild(message);
-
-        messages.scrollTop =
-            messages.scrollHeight;
-
-        return message;
-    }
-
-
-    // =====================================
-    // SEND MESSAGE
-    // =====================================
-
-    async function sendMessage() {
-
-        const text =
-            input.value.trim();
-
-        if (!text) {
-            return;
         }
 
-        addMessage(
+
+        const messages =
+            document.getElementById(
+                "messages"
+            );
+
+
+        const input =
+            document.getElementById(
+                "messageInput"
+            );
+
+
+        const sendButton =
+            document.getElementById(
+                "sendButton"
+            );
+
+
+        const statusBox =
+            document.getElementById(
+                "status"
+            );
+
+
+        // ==================================
+        // ADD MESSAGE
+        // ==================================
+
+        function addMessage(
             text,
-            "customer"
-        );
+            sender
+        ) {
 
-        input.value = "";
+            const row =
+                document.createElement(
+                    "div"
+                );
 
-        input.disabled = true;
-        sendButton.disabled = true;
+
+            row.className =
+                "message-row " + sender;
 
 
-        // =====================================
-        // TYPING INDICATOR
-        // =====================================
+            const bubble =
+                document.createElement(
+                    "div"
+                );
 
-        const typing =
-            addMessage(
-                "Assistant is typing...",
-                "bot"
+
+            bubble.className =
+                "message " + sender;
+
+
+            bubble.textContent =
+                text;
+
+
+            row.appendChild(
+                bubble
             );
 
-        typing.classList.add("typing");
+
+            messages.appendChild(
+                row
+            );
 
 
-        try {
-
-            const response =
-                await fetch(
-                    "/chat",
-                    {
-                        method: "POST",
-
-                        headers: {
-                            "Content-Type":
-                                "application/json"
-                        },
-
-                        body: JSON.stringify({
-                            conversation_id:
-                                conversationId,
-
-                            message:
-                                text
-                        })
-                    }
-                );
+            scrollToBottom();
 
 
-            if (!response.ok) {
-                throw new Error(
-                    "Server returned an error."
-                );
-            }
-
-
-            const data =
-                await response.json();
-
-
-            typing.remove();
-
-
-            if (data.reply) {
-
-                addMessage(
-                    data.reply,
-                    "bot"
-                );
-
-            } else {
-
-                addMessage(
-                    "Sorry, I couldn't process that message. Please try again.",
-                    "bot"
-                );
-            }
+            return bubble;
 
         }
 
-        catch (error) {
 
-            typing.remove();
+        // ==================================
+        // SCROLL
+        // ==================================
 
-            console.error(error);
+        function scrollToBottom() {
 
-            addMessage(
-                "I'm having trouble connecting right now. Please try again.",
-                "bot"
-            );
+            messages.scrollTop =
+                messages.scrollHeight;
+
         }
 
 
-        // =====================================
-        // RE-ENABLE INPUT
-        // =====================================
+        // ==================================
+        // EXTRACT AVAILABLE TIMES
+        // ==================================
 
-        input.disabled = false;
-        sendButton.disabled = false;
+        function extractAvailableSlots(
+            responseText
+        ) {
 
-        input.focus();
-    }
+            const marker =
+                "The next available times are:";
 
-
-    // =====================================
-    // ENTER TO SEND
-    // =====================================
-
-    input.addEventListener(
-        "keydown",
-        function(event) {
 
             if (
-                event.key === "Enter"
-                && !event.shiftKey
+                !responseText.includes(
+                    marker
+                )
             ) {
 
-                event.preventDefault();
+                return [];
+
+            }
+
+
+            const section =
+                responseText
+                    .split(marker)[1];
+
+
+            if (!section) {
+
+                return [];
+
+            }
+
+
+            const cleaned =
+                section
+                    .trim()
+                    .replace(/\.$/, "");
+
+
+            const parts =
+                cleaned.split(",");
+
+
+            const slots = [];
+
+
+            /*
+                Backend currently returns:
+
+                Wednesday, September 02 at 9:00 AM,
+                Wednesday, September 02 at 9:30 AM,
+                Wednesday, September 02 at 10:00 AM
+
+                Splitting by comma creates 6 pieces,
+                so we rebuild them in pairs.
+            */
+
+
+            for (
+                let i = 0;
+                i < parts.length - 1;
+                i += 2
+            ) {
+
+                const day =
+                    parts[i]
+                        .trim();
+
+
+                const dateAndTime =
+                    parts[i + 1]
+                        .trim();
+
+
+                if (
+                    day &&
+                    dateAndTime
+                ) {
+
+                    slots.push(
+                        day +
+                        ", " +
+                        dateAndTime
+                    );
+
+                }
+
+            }
+
+
+            return slots;
+
+        }
+
+
+        // ==================================
+        // CREATE SLOT BUTTONS
+        // ==================================
+
+        function showSlotButtons(
+            slots
+        ) {
+
+            if (
+                !slots ||
+                slots.length === 0
+            ) {
+
+                return;
+
+            }
+
+
+            const row =
+                document.createElement(
+                    "div"
+                );
+
+
+            row.className =
+                "message-row bot";
+
+
+            const wrapper =
+                document.createElement(
+                    "div"
+                );
+
+
+            wrapper.className =
+                "slot-wrapper";
+
+
+            slots.forEach(
+                function(slot) {
+
+                    const button =
+                        document.createElement(
+                            "button"
+                        );
+
+
+                    button.className =
+                        "slot-button";
+
+
+                    /*
+                        Display only the time on
+                        the button when possible.
+                    */
+
+                    const atIndex =
+                        slot.lastIndexOf(
+                            " at "
+                        );
+
+
+                    if (
+                        atIndex !== -1
+                    ) {
+
+                        button.textContent =
+                            slot.substring(
+                                atIndex + 4
+                            );
+
+                    } else {
+
+                        button.textContent =
+                            slot;
+
+                    }
+
+
+                    button.title =
+                        slot;
+
+
+                    button.addEventListener(
+                        "click",
+                        function() {
+
+                            /*
+                                Disable all buttons
+                                from this suggestion.
+                            */
+
+                            const buttons =
+                                wrapper.querySelectorAll(
+                                    ".slot-button"
+                                );
+
+
+                            buttons.forEach(
+                                function(item) {
+
+                                    item.disabled =
+                                        true;
+
+                                }
+                            );
+
+
+                            sendMessage(
+                                "Book me for " +
+                                slot +
+                                "."
+                            );
+
+                        }
+                    );
+
+
+                    wrapper.appendChild(
+                        button
+                    );
+
+                }
+            );
+
+
+            row.appendChild(
+                wrapper
+            );
+
+
+            messages.appendChild(
+                row
+            );
+
+
+            scrollToBottom();
+
+        }
+
+
+        // ==================================
+        // STATUS
+        // ==================================
+
+        function showStatus(
+            data
+        ) {
+
+            if (
+                data.booking_status
+                === "booked"
+            ) {
+
+                statusBox.textContent =
+                    "✓ Appointment booked.";
+
+                return;
+
+            }
+
+
+            if (
+                data.booking_status
+                === "unavailable"
+            ) {
+
+                statusBox.textContent =
+                    "Requested time unavailable.";
+
+                return;
+
+            }
+
+
+            if (
+                data.lead_status
+                === "saved"
+            ) {
+
+                statusBox.textContent =
+                    "✓ Customer information saved.";
+
+                return;
+
+            }
+
+
+            if (
+                data.lead_status
+                === "updated"
+            ) {
+
+                statusBox.textContent =
+                    "Customer information updated.";
+
+                return;
+
+            }
+
+
+            statusBox.textContent =
+                "";
+
+        }
+
+
+        // ==================================
+        // SEND MESSAGE
+        // ==================================
+
+        async function sendMessage(
+            customMessage = null
+        ) {
+
+            const text =
+                customMessage !== null
+                    ? customMessage
+                    : input.value.trim();
+
+
+            if (!text) {
+
+                return;
+
+            }
+
+
+            addMessage(
+                text,
+                "user"
+            );
+
+
+            input.value =
+                "";
+
+
+            input.disabled =
+                true;
+
+
+            sendButton.disabled =
+                true;
+
+
+            statusBox.textContent =
+                "Assistant is typing...";
+
+
+            try {
+
+                const response =
+                    await fetch(
+                        "/message",
+                        {
+                            method:
+                                "POST",
+
+                            headers: {
+                                "Content-Type":
+                                    "application/json"
+                            },
+
+                            body:
+                                JSON.stringify({
+                                    message:
+                                        text,
+
+                                    session_id:
+                                        sessionId
+                                })
+                        }
+                    );
+
+
+                const data =
+                    await response.json();
+
+
+                if (!response.ok) {
+
+                    throw new Error(
+                        data.error ||
+                        "Server error"
+                    );
+
+                }
+
+
+                const botResponse =
+                    data.response ||
+                    "I couldn't process that request.";
+
+
+                addMessage(
+                    botResponse,
+                    "bot"
+                );
+
+
+                showStatus(
+                    data
+                );
+
+
+                const slots =
+                    extractAvailableSlots(
+                        botResponse
+                    );
+
+
+                if (
+                    slots.length > 0
+                ) {
+
+                    showSlotButtons(
+                        slots
+                    );
+
+                }
+
+            }
+
+            catch (error) {
+
+                console.error(
+                    error
+                );
+
+
+                addMessage(
+                    "I'm having trouble connecting right now. Please try again.",
+                    "bot"
+                );
+
+
+                statusBox.textContent =
+                    "Connection error.";
+
+            }
+
+            finally {
+
+                input.disabled =
+                    false;
+
+
+                sendButton.disabled =
+                    false;
+
+
+                input.focus();
+
+            }
+
+        }
+
+
+        // ==================================
+        // BUTTON
+        // ==================================
+
+        sendButton.addEventListener(
+            "click",
+            function() {
 
                 sendMessage();
-            }
-        }
-    );
 
-</script>
+            }
+        );
+
+
+        // ==================================
+        // ENTER KEY
+        // ==================================
+
+        input.addEventListener(
+            "keydown",
+            function(event) {
+
+                if (
+                    event.key === "Enter"
+                ) {
+
+                    event.preventDefault();
+
+                    sendMessage();
+
+                }
+
+            }
+        );
+
+
+        input.focus();
+
+    </script>
 
 </body>
+
 </html>

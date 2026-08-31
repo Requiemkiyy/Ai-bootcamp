@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Freedom Auto Detailing - Leads</title>
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: #111;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: auto;
+            padding: 40px 20px;
+        }
+
+        .top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            margin: 0;
+        }
+
+        .subtitle {
+            color: #999;
+            margin-top: 6px;
+        }
+
+        .back-button {
+            text-decoration: none;
+            background: white;
+            color: #111;
+            padding: 12px 18px;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+
+        .card {
+            background: #1c1c1c;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            background: #292929;
+            text-align: left;
+            padding: 15px;
+            color: #aaa;
+            font-size: 13px;
+        }
+
+        td {
+            padding: 15px;
+            border-top: 1px solid #333;
+        }
+
+        tr:hover {
+            background: #222;
+        }
+
+        .empty {
+            padding: 50px;
+            text-align: center;
+            color: #888;
+        }
+
+        .status {
+            display: inline-block;
+            background: #333;
+            padding: 6px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+        }
+
+        @media (max-width: 800px) {
+
+            .card {
+                overflow-x: auto;
+            }
+
+            table {
+                min-width: 900px;
+            }
+
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+    <div class="top">
+
+        <div>
+            <h1>Freedom Auto Detailing</h1>
+            <div class="subtitle">
+                AI Lead Dashboard
+            </div>
+        </div>
+
+        <a
+            href="/"
+            class="back-button"
+        >
+            Open Chat
+        </a>
+
+    </div>
+
+
+    <div class="card">
+
+        <table>
+
+            <thead>
+
+                <tr>
+                    <th>ID</th>
+                    <th>Customer</th>
+                    <th>Phone</th>
+                    <th>Email</th>
+                    <th>Vehicle</th>
+                    <th>Service</th>
+                    <th>Requested Time</th>
+                    <th>Status</th>
+                </tr>
+
+            </thead>
+
+
+            <tbody id="leadTable">
+
+                <tr>
+                    <td
+                        colspan="8"
+                        class="empty"
+                    >
+                        Loading leads...
+                    </td>
+                </tr>
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+
+<script>
+
+async function loadLeads() {
+
+    const table =
+        document.getElementById("leadTable");
+
+
+    try {
+
+        const response =
+            await fetch("/api/leads");
+
+
+        const leads =
+            await response.json();
+
+
+        table.innerHTML = "";
+
+
+        if (leads.length === 0) {
+
+            table.innerHTML = `
+                <tr>
+                    <td
+                        colspan="8"
+                        class="empty"
+                    >
+                        No leads yet.
+                    </td>
+                </tr>
+            `;
+
+            return;
+        }
+
+
+        leads.forEach(function(lead) {
+
+            const row =
+                document.createElement("tr");
+
+
+            row.innerHTML = `
+
+                <td>
+                    ${lead.id ?? ""}
+                </td>
+
+                <td>
+                    ${lead.customer_name ?? ""}
+                </td>
+
+                <td>
+                    ${lead.phone_number ?? ""}
+                </td>
+
+                <td>
+                    ${lead.email ?? ""}
+                </td>
+
+                <td>
+                    ${lead.vehicle ?? ""}
+                </td>
+
+                <td>
+                    ${lead.requested_service ?? ""}
+                </td>
+
+                <td>
+                    ${lead.requested_time ?? ""}
+                </td>
+
+                <td>
+                    <span class="status">
+                        New Lead
+                    </span>
+                </td>
+
+            `;
+
+
+            table.appendChild(row);
+
+        });
+
+
+    }
+
+    catch (error) {
+
+        console.error(error);
+
+
+        table.innerHTML = `
+            <tr>
+                <td
+                    colspan="8"
+                    class="empty"
+                >
+                    Could not load leads.
+                </td>
+            </tr>
+        `;
+
+    }
+
+}
+
+
+loadLeads();
+
+</script>
+
+
+</body>
+
+</html>
