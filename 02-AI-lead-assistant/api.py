@@ -1,17 +1,44 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
+from uuid import UUID
+import traceback
 
 from lead_assistant import process_customer_message
 from dashboard import router as dashboard_router
 
-
-app = FastAPI()
-app.include_router(dashboard_router)
+from database import (
+    check_database_rate_limit
+)
 
 
 # =====================================
-# CUSTOMER REQUEST FORMAT
+# APP
+# =====================================
+
+app = FastAPI()
+
+app.include_router(
+    dashboard_router
+)
+
+
+# =====================================
+# PROTECTION SETTINGS
+# =====================================
+
+MAX_MESSAGE_LENGTH = 500
+
+RATE_LIMIT_WINDOW_SECONDS = 60
+
+# PRODUCTION LIMIT
+RATE_LIMIT_MAX_REQUESTS = 15
+
+MIN_REQUEST_INTERVAL_SECONDS = 0.75
+
+
+# =====================================
+# REQUEST MODEL
 # =====================================
 
 class CustomerMessage(BaseModel):
@@ -20,13 +47,195 @@ class CustomerMessage(BaseModel):
 
 
 # =====================================
-# CHAT WEBSITE
+# CLIENT IP
 # =====================================
 
-@app.get("/", response_class=HTMLResponse)
+def get_client_ip(request: Request):
+
+    forwarded_for = request.headers.get(
+        "x-forwarded-for"
+    )
+
+    if forwarded_for:
+
+        return (
+            forwarded_for
+            .split(",")[0]
+            .strip()
+        )
+
+    if request.client:
+
+        return request.client.host
+
+    return "unknown"
+
+
+# =====================================
+# SESSION VALIDATION
+# =====================================
+
+def validate_session_id(
+    session_id
+):
+
+    if not session_id:
+
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid session."
+        )
+
+    if len(session_id) > 100:
+
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid session."
+        )
+
+    try:
+
+        UUID(session_id)
+
+    except (
+        ValueError,
+        TypeError,
+        AttributeError
+    ):
+
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid session."
+        )
+
+
+# =====================================
+# MESSAGE VALIDATION
+# =====================================
+
+def validate_message(
+    message
+):
+
+    if message is None:
+
+        raise HTTPException(
+            status_code=400,
+            detail="Please enter a message."
+        )
+
+    message = message.strip()
+
+    if not message:
+
+        raise HTTPException(
+            status_code=400,
+            detail="Please enter a message."
+        )
+
+    if (
+        len(message)
+        > MAX_MESSAGE_LENGTH
+    ):
+
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Messages must be under "
+                f"{MAX_MESSAGE_LENGTH} characters."
+            )
+        )
+
+    return message
+
+
+# =====================================
+# DATABASE RATE LIMIT
+# =====================================
+
+def enforce_rate_limit(
+    request,
+    session_id
+):
+
+    client_ip = get_client_ip(
+        request
+    )
+
+    client_key = (
+        f"{client_ip}:"
+        f"{session_id}"
+    )
+
+    result = (
+        check_database_rate_limit(
+
+            client_key=
+                client_key,
+
+            max_requests=
+                RATE_LIMIT_MAX_REQUESTS,
+
+            window_seconds=
+                RATE_LIMIT_WINDOW_SECONDS,
+
+            minimum_interval_seconds=
+                MIN_REQUEST_INTERVAL_SECONDS
+        )
+    )
+
+
+    # ---------------------------------
+    # ALLOWED
+    # ---------------------------------
+
+    if result.get(
+        "allowed",
+        False
+    ):
+
+        return
+
+
+    # ---------------------------------
+    # BLOCKED
+    # ---------------------------------
+
+    wait_seconds = result.get(
+        "wait_seconds",
+        1
+    )
+
+    raise HTTPException(
+
+        status_code=429,
+
+        detail=(
+            "You've sent too many messages. "
+            f"Please wait about "
+            f"{wait_seconds} seconds."
+        ),
+
+        headers={
+            "Retry-After":
+                str(wait_seconds)
+        }
+    )
+
+
+# =====================================
+# CUSTOMER WEBSITE
+# =====================================
+
+@app.get(
+    "/",
+    response_class=HTMLResponse
+)
 def home():
+
     return """
 <!DOCTYPE html>
+
 <html lang="en">
 
 <head>
@@ -38,7 +247,9 @@ def home():
         content="width=device-width, initial-scale=1.0"
     >
 
-    <title>Freedom Auto Detailing</title>
+    <title>
+        Freedom Auto Detailing
+    </title>
 
 
     <style>
@@ -56,24 +267,32 @@ def home():
 
             display: flex;
 
-            justify-content: center;
-
             align-items: center;
 
-            background: #111;
+            justify-content: center;
 
-            color: white;
+            background: #111111;
 
-            font-family: Arial, sans-serif;
+            color: #ffffff;
 
+            font-family:
+                Arial,
+                Helvetica,
+                sans-serif;
         }
 
 
-        .chat-container {
+        .chat-card {
 
             width: 420px;
 
-            height: 650px;
+            max-width:
+                calc(100vw - 30px);
+
+            height: 680px;
+
+            max-height:
+                calc(100vh - 30px);
 
             display: flex;
 
@@ -81,13 +300,18 @@ def home():
 
             overflow: hidden;
 
-            background: #1c1c1c;
+            background: #1b1b1b;
 
             border-radius: 18px;
 
             box-shadow:
-                0 15px 50px rgba(0, 0, 0, 0.5);
-
+                0 20px 60px
+                rgba(
+                    0,
+                    0,
+                    0,
+                    0.45
+                );
         }
 
 
@@ -95,26 +319,28 @@ def home():
 
             padding: 20px;
 
-            background: #252525;
-
+            background: #282828;
         }
 
 
-        .header h2 {
+        .header h1 {
 
             margin: 0;
 
+            font-size: 24px;
         }
 
 
         .header p {
 
-            margin: 5px 0 0;
+            margin:
+                6px
+                0
+                0;
 
-            color: #aaa;
+            color: #b8c0cc;
 
             font-size: 14px;
-
         }
 
 
@@ -122,29 +348,31 @@ def home():
 
             flex: 1;
 
-            padding: 20px;
+            overflow-y: auto;
+
+            padding: 18px;
 
             display: flex;
 
             flex-direction: column;
 
             gap: 12px;
-
-            overflow-y: auto;
-
         }
 
 
-        .message {
+        .bubble {
 
-            max-width: 80%;
+            max-width: 78%;
 
-            padding: 12px 15px;
+            padding:
+                12px
+                15px;
 
             border-radius: 15px;
 
             line-height: 1.4;
 
+            word-wrap: break-word;
         }
 
 
@@ -152,8 +380,7 @@ def home():
 
             align-self: flex-start;
 
-            background: #333;
-
+            background: #363636;
         }
 
 
@@ -161,23 +388,21 @@ def home():
 
             align-self: flex-end;
 
-            background: white;
+            background: #ffffff;
 
-            color: #111;
-
+            color: #111111;
         }
 
 
         .typing {
 
-            display: none;
-
             align-self: flex-start;
 
-            color: #999;
+            background: #363636;
 
-            font-size: 13px;
+            color: #cccccc;
 
+            display: none;
         }
 
 
@@ -189,57 +414,76 @@ def home():
 
             padding: 15px;
 
-            background: #252525;
-
+            background: #292929;
         }
 
 
-        input {
+        #message-input {
 
             flex: 1;
 
-            padding: 12px;
+            min-width: 0;
 
-            border: none;
-
-            border-radius: 8px;
+            border: 0;
 
             outline: none;
 
-            font-size: 14px;
+            border-radius: 8px;
 
+            padding:
+                12px
+                13px;
+
+            font-size: 14px;
         }
 
 
-        button {
+        #send-button {
 
-            padding: 12px 18px;
-
-            border: none;
+            border: 0;
 
             border-radius: 8px;
 
+            padding:
+                0
+                18px;
+
             cursor: pointer;
 
-            font-weight: bold;
-
+            font-weight: 700;
         }
 
 
-        button:hover {
-
-            opacity: 0.85;
-
-        }
-
-
-        button:disabled {
-
-            opacity: 0.5;
+        #send-button:disabled {
 
             cursor: not-allowed;
 
+            opacity: 0.6;
         }
+
+
+        .counter {
+
+            padding:
+                0
+                16px
+                8px;
+
+            background: #292929;
+
+            text-align: right;
+
+            color: #8f98a4;
+
+            font-size: 11px;
+        }
+
+
+        .counter.warning {
+
+            color: #ffcc66;
+        }
+
 
     </style>
 
@@ -249,14 +493,14 @@ def home():
 <body>
 
 
-<div class="chat-container">
+<div class="chat-card">
 
 
     <div class="header">
 
-        <h2>
+        <h1>
             Freedom Auto Detailing
-        </h2>
+        </h1>
 
         <p>
             AI Assistant • Online
@@ -266,20 +510,20 @@ def home():
 
 
     <div
-        class="messages"
         id="messages"
+        class="messages"
     >
 
-        <div class="message bot">
-            Hey! 👋 How can we help with your vehicle today?
+        <div class="bubble bot">
+            Hi! How can I help you with your vehicle today?
         </div>
 
 
         <div
-            class="typing"
             id="typing"
+            class="bubble typing"
         >
-            Assistant is typing...
+            Typing...
         </div>
 
     </div>
@@ -287,23 +531,29 @@ def home():
 
     <div class="input-area">
 
-
         <input
-            id="messageInput"
+            id="message-input"
             type="text"
+            maxlength="500"
             placeholder="Type your message..."
             autocomplete="off"
         >
 
 
         <button
-            id="sendButton"
-            onclick="sendMessage()"
+            id="send-button"
         >
             Send
         </button>
 
+    </div>
 
+
+    <div
+        id="counter"
+        class="counter"
+    >
+        0 / 500
     </div>
 
 
@@ -313,218 +563,402 @@ def home():
 <script>
 
 
-const input =
-    document.getElementById("messageInput");
+    // =================================
+    // SESSION
+    // =================================
 
-
-const messages =
-    document.getElementById("messages");
-
-
-const typing =
-    document.getElementById("typing");
-
-
-const sendButton =
-    document.getElementById("sendButton");
-
-
-// =====================================
-// CUSTOMER SESSION
-// =====================================
-
-let sessionId =
-    localStorage.getItem(
-        "freedom_detail_session"
-    );
-
-
-if (!sessionId) {
-
-    sessionId =
-        crypto.randomUUID();
-
-    localStorage.setItem(
-        "freedom_detail_session",
-        sessionId
-    );
-
-}
-
-
-// =====================================
-// SEND MESSAGE
-// =====================================
-
-async function sendMessage() {
-
-
-    const text =
-        input.value.trim();
-
-
-    if (!text) {
-
-        return;
-
-    }
-
-
-    const userMessage =
-        document.createElement("div");
-
-
-    userMessage.className =
-        "message user";
-
-
-    userMessage.textContent =
-        text;
-
-
-    messages.insertBefore(
-        userMessage,
-        typing
-    );
-
-
-    input.value = "";
-
-    input.disabled = true;
-
-    sendButton.disabled = true;
-
-    typing.style.display = "block";
-
-
-    messages.scrollTop =
-        messages.scrollHeight;
-
-
-    try {
-
-
-        const response = await fetch(
-
-            "/message",
-
-            {
-
-                method: "POST",
-
-                headers: {
-
-                    "Content-Type":
-                        "application/json"
-
-                },
-
-                body: JSON.stringify({
-
-                    message: text,
-
-                    session_id: sessionId
-
-                })
-
-            }
-
+    let sessionId =
+        localStorage.getItem(
+            "freedom_detail_session"
         );
 
 
-        const data =
-            await response.json();
+    if (!sessionId) {
+
+        sessionId =
+            crypto.randomUUID();
+
+        localStorage.setItem(
+            "freedom_detail_session",
+            sessionId
+        );
+    }
 
 
-        typing.style.display =
-            "none";
+    // =================================
+    // ELEMENTS
+    // =================================
+
+    const messages =
+        document.getElementById(
+            "messages"
+        );
 
 
-        const botMessage =
-            document.createElement("div");
+    const typing =
+        document.getElementById(
+            "typing"
+        );
 
 
-        botMessage.className =
-            "message bot";
+    const input =
+        document.getElementById(
+            "message-input"
+        );
 
 
-        botMessage.textContent =
-            data.response ||
-            "Sorry, something went wrong.";
+    const sendButton =
+        document.getElementById(
+            "send-button"
+        );
+
+
+    const counter =
+        document.getElementById(
+            "counter"
+        );
+
+
+    // =================================
+    // ADD MESSAGE
+    // =================================
+
+    function addMessage(
+        text,
+        sender
+    ) {
+
+        const bubble =
+            document.createElement(
+                "div"
+            );
+
+
+        bubble.classList.add(
+            "bubble",
+            sender
+        );
+
+
+        bubble.textContent =
+            text;
 
 
         messages.insertBefore(
-            botMessage,
+            bubble,
             typing
         );
 
 
         messages.scrollTop =
             messages.scrollHeight;
-
-
-    }
-
-    catch (error) {
-
-
-        console.error(error);
-
-
-        typing.style.display =
-            "none";
-
-
-        const errorMessage =
-            document.createElement("div");
-
-
-        errorMessage.className =
-            "message bot";
-
-
-        errorMessage.textContent =
-            "Sorry, I couldn't connect to the assistant.";
-
-
-        messages.insertBefore(
-            errorMessage,
-            typing
-        );
-
     }
 
 
-    input.disabled = false;
+    // =================================
+    // CHARACTER COUNTER
+    // =================================
 
-    sendButton.disabled = false;
+    input.addEventListener(
 
-    input.focus();
+        "input",
 
-}
+        () => {
 
-
-// =====================================
-// ENTER TO SEND
-// =====================================
-
-input.addEventListener(
-
-    "keydown",
-
-    function(event) {
+            const length =
+                input.value.length;
 
 
-        if (event.key === "Enter") {
+            counter.textContent =
+                `${length} / 500`;
 
-            sendMessage();
 
+            if (
+                length >= 450
+            ) {
+
+                counter.classList.add(
+                    "warning"
+                );
+
+            } else {
+
+                counter.classList.remove(
+                    "warning"
+                );
+            }
+        }
+    );
+
+
+    // =================================
+    // SEND MESSAGE
+    // =================================
+
+    async function sendMessage() {
+
+
+        const message =
+            input.value.trim();
+
+
+        if (!message) {
+
+            return;
         }
 
 
+        if (
+            message.length > 500
+        ) {
+
+            addMessage(
+                "That message is too long. Please keep it under 500 characters.",
+                "bot"
+            );
+
+            return;
+        }
+
+
+        // -----------------------------
+        // LOCK INPUT
+        // -----------------------------
+
+        input.value = "";
+
+
+        counter.textContent =
+            "0 / 500";
+
+
+        counter.classList.remove(
+            "warning"
+        );
+
+
+        input.disabled =
+            true;
+
+
+        sendButton.disabled =
+            true;
+
+
+        // -----------------------------
+        // USER MESSAGE
+        // -----------------------------
+
+        addMessage(
+            message,
+            "user"
+        );
+
+
+        // -----------------------------
+        // TYPING
+        // -----------------------------
+
+        typing.style.display =
+            "block";
+
+
+        messages.scrollTop =
+            messages.scrollHeight;
+
+
+        try {
+
+
+            const response =
+                await fetch(
+
+                    "/message",
+
+                    {
+
+                        method:
+                            "POST",
+
+                        headers: {
+
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body:
+                            JSON.stringify({
+
+                                message:
+                                    message,
+
+                                session_id:
+                                    sessionId
+                            })
+                    }
+                );
+
+
+            const rawText =
+                await response.text();
+
+
+            let data = null;
+
+
+            try {
+
+                data =
+                    JSON.parse(
+                        rawText
+                    );
+
+            } catch (
+                parseError
+            ) {
+
+                console.error(
+                    "Invalid server response:",
+                    rawText
+                );
+            }
+
+
+            typing.style.display =
+                "none";
+
+
+            // -------------------------
+            // RATE LIMIT
+            // -------------------------
+
+            if (
+                response.status === 429
+            ) {
+
+                addMessage(
+                    data?.detail
+                    ||
+                    "You've sent too many messages. Please wait a moment.",
+                    "bot"
+                );
+
+                return;
+            }
+
+
+            // -------------------------
+            // OTHER ERROR
+            // -------------------------
+
+            if (!response.ok) {
+
+                addMessage(
+                    data?.detail
+                    ||
+                    "Sorry, I couldn't process that message.",
+                    "bot"
+                );
+
+                return;
+            }
+
+
+            // -------------------------
+            // SUCCESS
+            // -------------------------
+
+            if (
+                data
+                &&
+                data.response
+            ) {
+
+                addMessage(
+                    data.response,
+                    "bot"
+                );
+
+            } else {
+
+                addMessage(
+                    "Sorry, I couldn't connect to the assistant.",
+                    "bot"
+                );
+            }
+
+
+        } catch (
+            error
+        ) {
+
+
+            console.error(
+                error
+            );
+
+
+            typing.style.display =
+                "none";
+
+
+            addMessage(
+                "Sorry, I couldn't connect to the assistant.",
+                "bot"
+            );
+
+
+        } finally {
+
+
+            input.disabled =
+                false;
+
+
+            sendButton.disabled =
+                false;
+
+
+            input.focus();
+        }
     }
 
-);
+
+    // =================================
+    // SEND BUTTON
+    // =================================
+
+    sendButton.addEventListener(
+        "click",
+        sendMessage
+    );
+
+
+    // =================================
+    // ENTER KEY
+    // =================================
+
+    input.addEventListener(
+
+        "keydown",
+
+        event => {
+
+            if (
+                event.key === "Enter"
+                &&
+                !event.shiftKey
+            ) {
+
+                event.preventDefault();
+
+                sendMessage();
+            }
+        }
+    );
+
+
+    input.focus();
 
 
 </script>
@@ -537,15 +971,109 @@ input.addEventListener(
 
 
 # =====================================
-# AI MESSAGE ENDPOINT
+# MESSAGE API
 # =====================================
 
 @app.post("/message")
-def receive_message(customer: CustomerMessage):
+def message_endpoint(
+    customer: CustomerMessage,
+    request: Request
+):
 
-    result = process_customer_message(
-        customer.message,
-        customer.session_id
-    )
+    try:
 
-    return result
+
+        # =================================
+        # VALIDATE SESSION
+        # =================================
+
+        validate_session_id(
+            customer.session_id
+        )
+
+
+        # =================================
+        # VALIDATE MESSAGE
+        # =================================
+
+        clean_message = (
+            validate_message(
+                customer.message
+            )
+        )
+
+
+        # =================================
+        # DATABASE RATE LIMIT
+        #
+        # THIS RUNS BEFORE OPENAI.
+        # =================================
+
+        enforce_rate_limit(
+            request,
+            customer.session_id
+        )
+
+
+        # =================================
+        # AI ASSISTANT
+        # =================================
+
+        result = (
+            process_customer_message(
+                clean_message,
+                customer.session_id
+            )
+        )
+
+
+        return result
+
+
+    # =====================================
+    # EXPECTED HTTP ERRORS
+    # =====================================
+
+    except HTTPException:
+
+        raise
+
+
+    # =====================================
+    # UNEXPECTED ERROR
+    # =====================================
+
+    except Exception as error:
+
+
+        print(
+            "\n"
+            "=====================================\n"
+            "MESSAGE API ERROR\n"
+            "====================================="
+        )
+
+
+        traceback.print_exc()
+
+
+        print(
+            "ERROR:",
+            repr(error)
+        )
+
+
+        print(
+            "=====================================\n"
+        )
+
+
+        raise HTTPException(
+
+            status_code=500,
+
+            detail=(
+                "Sorry, the assistant had "
+                "trouble processing that."
+            )
+        )

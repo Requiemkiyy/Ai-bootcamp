@@ -2,6 +2,7 @@ import os
 import sqlite3
 import json
 from pathlib import Path
+from datetime import datetime, timedelta
 
 
 # =====================================
@@ -13,7 +14,6 @@ SQLITE_PATH = BASE_DIR / "leads.db"
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 IS_POSTGRES = bool(DATABASE_URL)
-
 
 if IS_POSTGRES:
     import psycopg
@@ -61,21 +61,17 @@ class DatabaseConnection:
         self.postgres = IS_POSTGRES
 
         if self.postgres:
-
             self.connection = psycopg.connect(
                 DATABASE_URL,
                 row_factory=dict_row
             )
 
         else:
-
             self.connection = sqlite3.connect(
                 SQLITE_PATH
             )
 
-            self.connection.row_factory = (
-                sqlite3.Row
-            )
+            self.connection.row_factory = sqlite3.Row
 
     def cursor(self):
 
@@ -103,6 +99,24 @@ def get_connection():
 
 
 # =====================================
+# TIMESTAMPS
+# =====================================
+
+def current_timestamp():
+
+    return datetime.now().strftime(
+        "%Y-%m-%d %I:%M %p"
+    )
+
+
+def rate_limit_timestamp():
+
+    return datetime.now().strftime(
+        "%Y-%m-%d %H:%M:%S.%f"
+    )
+
+
+# =====================================
 # DATABASE SETUP
 # =====================================
 
@@ -112,10 +126,6 @@ def setup_database():
     cursor = conn.cursor()
 
     try:
-
-        # =================================
-        # POSTGRES
-        # =================================
 
         if IS_POSTGRES:
 
@@ -159,9 +169,13 @@ def setup_database():
                 )
             """)
 
-        # =================================
-        # SQLITE
-        # =================================
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS rate_limits (
+                    id BIGSERIAL PRIMARY KEY,
+                    client_key TEXT NOT NULL,
+                    request_time TEXT NOT NULL
+                )
+            """)
 
         else:
 
@@ -205,6 +219,26 @@ def setup_database():
                 )
             """)
 
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS rate_limits (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    client_key TEXT NOT NULL,
+                    request_time TEXT NOT NULL
+                )
+            """)
+
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS
+            idx_rate_limits_client_key
+            ON rate_limits(client_key)
+        """)
+
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS
+            idx_rate_limits_request_time
+            ON rate_limits(request_time)
+        """)
+
         conn.commit()
 
     except Exception:
@@ -228,7 +262,6 @@ def load_session(session_id):
 
         cursor.execute("""
             SELECT
-                session_id,
                 customer_data,
                 booking_data,
                 messages
@@ -244,6 +277,7 @@ def load_session(session_id):
             return None
 
         try:
+
             customer_data = json.loads(
                 row["customer_data"]
             )
@@ -305,10 +339,6 @@ def save_session(
 
     try:
 
-        # ---------------------------------
-        # CHECK IF SESSION EXISTS
-        # ---------------------------------
-
         cursor.execute("""
             SELECT session_id
             FROM sessions
@@ -319,21 +349,15 @@ def save_session(
 
         existing = cursor.fetchone()
 
-        # ---------------------------------
-        # UPDATE EXISTING SESSION
-        # ---------------------------------
-
         if existing:
 
             cursor.execute("""
                 UPDATE sessions
-
                 SET
                     customer_data = ?,
                     booking_data = ?,
                     messages = ?,
                     updated_at = ?
-
                 WHERE session_id = ?
             """, (
                 customer_data_json,
@@ -342,10 +366,6 @@ def save_session(
                 timestamp,
                 session_id
             ))
-
-        # ---------------------------------
-        # CREATE NEW SESSION
-        # ---------------------------------
 
         else:
 
@@ -403,16 +423,179 @@ def delete_session(session_id):
 
 
 # =====================================
-# TIMESTAMP
+# RATE LIMIT
 # =====================================
 
-def current_timestamp():
+def check_database_rate_limit(
+    client_key,
+    max_requests=15,
+    window_seconds=60,
+    minimum_interval_seconds=0
+):
 
-    from datetime import datetime
+    now = datetime.now()
 
-    return datetime.now().strftime(
-        "%Y-%m-%d %I:%M %p"
+    cutoff = (
+        now
+        - timedelta(
+            seconds=window_seconds
+        )
     )
+
+    cutoff_string = cutoff.strftime(
+        "%Y-%m-%d %H:%M:%S.%f"
+    )
+
+    now_string = now.strftime(
+        "%Y-%m-%d %H:%M:%S.%f"
+    )
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+
+        # =================================
+        # REMOVE OLD RECORDS
+        # =================================
+
+        cursor.execute("""
+            DELETE FROM rate_limits
+            WHERE request_time < ?
+        """, (
+            cutoff_string,
+        ))
+
+
+        # =================================
+        # COUNT THIS VISITOR'S REQUESTS
+        # =================================
+
+        cursor.execute("""
+            SELECT COUNT(*) AS request_count
+            FROM rate_limits
+            WHERE client_key = ?
+            AND request_time >= ?
+        """, (
+            client_key,
+            cutoff_string
+        ))
+
+        row = cursor.fetchone()
+
+        request_count = (
+            int(
+                row["request_count"]
+            )
+            if row
+            else 0
+        )
+
+
+        # =================================
+        # BLOCK IF LIMIT REACHED
+        # =================================
+
+        if request_count >= max_requests:
+
+            cursor.execute("""
+                SELECT request_time
+                FROM rate_limits
+                WHERE client_key = ?
+                AND request_time >= ?
+                ORDER BY request_time ASC
+                LIMIT 1
+            """, (
+                client_key,
+                cutoff_string
+            ))
+
+            oldest_row = cursor.fetchone()
+
+            wait_seconds = window_seconds
+
+            if oldest_row:
+
+                try:
+
+                    oldest_request = datetime.strptime(
+                        oldest_row["request_time"],
+                        "%Y-%m-%d %H:%M:%S.%f"
+                    )
+
+                    unlock_time = (
+                        oldest_request
+                        + timedelta(
+                            seconds=window_seconds
+                        )
+                    )
+
+                    wait_seconds = max(
+                        1,
+                        int(
+                            (
+                                unlock_time
+                                - now
+                            ).total_seconds()
+                        ) + 1
+                    )
+
+                except (
+                    ValueError,
+                    TypeError
+                ):
+                    pass
+
+            conn.commit()
+
+            print(
+                f"RATE LIMIT BLOCKED: "
+                f"{client_key} "
+                f"({request_count}/{max_requests})"
+            )
+
+            return {
+                "allowed": False,
+                "reason": "limit_reached",
+                "wait_seconds": wait_seconds
+            }
+
+
+        # =================================
+        # RECORD ALLOWED REQUEST
+        # =================================
+
+        cursor.execute("""
+            INSERT INTO rate_limits (
+                client_key,
+                request_time
+            )
+            VALUES (?, ?)
+        """, (
+            client_key,
+            now_string
+        ))
+
+        conn.commit()
+
+        print(
+            f"RATE LIMIT ALLOWED: "
+            f"{client_key} "
+            f"({request_count + 1}/{max_requests})"
+        )
+
+        return {
+            "allowed": True,
+            "reason": None,
+            "wait_seconds": 0
+        }
+
+    except Exception:
+        conn.rollback()
+        raise
+
+    finally:
+        conn.close()
 
 
 # =====================================
