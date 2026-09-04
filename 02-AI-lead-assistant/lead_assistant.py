@@ -1,75 +1,17 @@
 from openai import OpenAI
-import sqlite3
 import json
 import traceback
 
 from datetime import datetime, timedelta
-from pathlib import Path
+
+from database import get_connection
 
 
 # =====================================
-# SETTINGS
+# OPENAI
 # =====================================
 
 client = OpenAI()
-
-BASE_DIR = Path(__file__).resolve().parent
-DATABASE_PATH = BASE_DIR / "leads.db"
-
-
-# =====================================
-# DATABASE CONNECTION
-# =====================================
-
-def get_connection():
-    connection = sqlite3.connect(DATABASE_PATH)
-    connection.row_factory = sqlite3.Row
-    return connection
-
-
-# =====================================
-# DATABASE SETUP
-# =====================================
-
-def setup_database():
-
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS leads (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            customer_name TEXT,
-            phone_number TEXT,
-            email TEXT,
-            vehicle TEXT,
-            requested_service TEXT,
-            requested_time TEXT,
-            status TEXT DEFAULT 'New',
-            created_at TEXT
-        )
-    """)
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS appointments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            customer_name TEXT,
-            phone_number TEXT,
-            vehicle TEXT,
-            service TEXT,
-            appointment_date TEXT,
-            appointment_time TEXT,
-            duration_minutes INTEGER,
-            status TEXT DEFAULT 'Booked',
-            created_at TEXT
-        )
-    """)
-
-    conn.commit()
-    conn.close()
-
-
-setup_database()
 
 
 # =====================================
@@ -180,6 +122,7 @@ def find_lead(phone_number):
     """)
 
     leads = cursor.fetchall()
+
     conn.close()
 
     for lead in leads:
@@ -189,6 +132,7 @@ def find_lead(phone_number):
         )
 
         if stored_phone == clean_phone:
+
             return dict(lead)
 
     return None
@@ -206,31 +150,41 @@ def save_lead(
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
-        INSERT INTO leads (
+    try:
+
+        cursor.execute("""
+            INSERT INTO leads (
+                customer_name,
+                phone_number,
+                email,
+                vehicle,
+                requested_service,
+                requested_time,
+                status,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
             customer_name,
-            phone_number,
+            normalize_phone(phone_number),
             email,
             vehicle,
             requested_service,
             requested_time,
-            status,
-            created_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        customer_name,
-        normalize_phone(phone_number),
-        email,
-        vehicle,
-        requested_service,
-        requested_time,
-        "New",
-        current_timestamp()
-    ))
+            "New",
+            current_timestamp()
+        ))
 
-    conn.commit()
-    conn.close()
+        conn.commit()
+
+    except Exception:
+
+        conn.rollback()
+        raise
+
+    finally:
+
+        conn.close()
 
 
 def update_lead(
@@ -252,32 +206,42 @@ def update_lead(
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
-        UPDATE leads
+    try:
 
-        SET
-            customer_name = ?,
-            phone_number = ?,
-            email = ?,
-            vehicle = ?,
-            requested_service = ?,
-            requested_time = ?
+        cursor.execute("""
+            UPDATE leads
 
-        WHERE id = ?
-    """, (
-        customer_name,
-        normalize_phone(phone_number),
-        email,
-        vehicle,
-        requested_service,
-        requested_time,
-        existing_lead["id"]
-    ))
+            SET
+                customer_name = ?,
+                phone_number = ?,
+                email = ?,
+                vehicle = ?,
+                requested_service = ?,
+                requested_time = ?
 
-    conn.commit()
-    conn.close()
+            WHERE id = ?
+        """, (
+            customer_name,
+            normalize_phone(phone_number),
+            email,
+            vehicle,
+            requested_service,
+            requested_time,
+            existing_lead["id"]
+        ))
 
-    return True
+        conn.commit()
+
+        return True
+
+    except Exception:
+
+        conn.rollback()
+        raise
+
+    finally:
+
+        conn.close()
 
 
 def get_all_leads():
@@ -292,6 +256,7 @@ def get_all_leads():
     """)
 
     results = cursor.fetchall()
+
     conn.close()
 
     return [
@@ -319,19 +284,29 @@ def update_lead_status(
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
-        UPDATE leads
-        SET status = ?
-        WHERE id = ?
-    """, (
-        new_status,
-        lead_id
-    ))
+    try:
 
-    conn.commit()
-    conn.close()
+        cursor.execute("""
+            UPDATE leads
+            SET status = ?
+            WHERE id = ?
+        """, (
+            new_status,
+            lead_id
+        ))
 
-    return True
+        conn.commit()
+
+        return True
+
+    except Exception:
+
+        conn.rollback()
+        raise
+
+    finally:
+
+        conn.close()
 
 
 def delete_lead(lead_id):
@@ -339,15 +314,25 @@ def delete_lead(lead_id):
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
-        DELETE FROM leads
-        WHERE id = ?
-    """, (
-        lead_id,
-    ))
+    try:
 
-    conn.commit()
-    conn.close()
+        cursor.execute("""
+            DELETE FROM leads
+            WHERE id = ?
+        """, (
+            lead_id,
+        ))
+
+        conn.commit()
+
+    except Exception:
+
+        conn.rollback()
+        raise
+
+    finally:
+
+        conn.close()
 
 
 # =====================================
@@ -359,18 +344,21 @@ def get_business_hours(
 ):
 
     try:
+
         date_object = datetime.strptime(
             appointment_date,
             "%Y-%m-%d"
         )
 
     except (ValueError, TypeError):
+
         return None
 
     weekday = date_object.weekday()
 
     # Monday-Friday
     if weekday <= 4:
+
         return {
             "open": "09:00",
             "close": "18:00"
@@ -378,6 +366,7 @@ def get_business_hours(
 
     # Saturday
     if weekday == 5:
+
         return {
             "open": "10:00",
             "close": "16:00"
@@ -398,12 +387,14 @@ def validate_appointment_time(
 ):
 
     try:
+
         requested_start = datetime.strptime(
             f"{appointment_date} {appointment_time}",
             "%Y-%m-%d %H:%M"
         )
 
     except (ValueError, TypeError):
+
         return {
             "valid": False,
             "reason":
@@ -411,6 +402,7 @@ def validate_appointment_time(
         }
 
     if requested_start < datetime.now():
+
         return {
             "valid": False,
             "reason":
@@ -422,6 +414,7 @@ def validate_appointment_time(
     )
 
     if hours is None:
+
         return {
             "valid": False,
             "reason":
@@ -433,6 +426,7 @@ def validate_appointment_time(
     )
 
     if duration is None:
+
         return {
             "valid": False,
             "reason":
@@ -455,6 +449,7 @@ def validate_appointment_time(
     )
 
     if requested_start < opening_time:
+
         return {
             "valid": False,
             "reason":
@@ -462,6 +457,7 @@ def validate_appointment_time(
         }
 
     if requested_end > closing_time:
+
         return {
             "valid": False,
             "reason":
@@ -492,6 +488,7 @@ def get_all_appointments():
     """)
 
     results = cursor.fetchall()
+
     conn.close()
 
     return [
@@ -518,6 +515,7 @@ def get_appointments_for_date(
     ))
 
     results = cursor.fetchall()
+
     conn.close()
 
     return [
@@ -543,6 +541,7 @@ def appointment_slot_available(
     )
 
     if not validation["valid"]:
+
         return validation
 
     requested_start = validation["start"]
@@ -555,6 +554,7 @@ def appointment_slot_available(
     for appointment in appointments:
 
         try:
+
             existing_start = datetime.strptime(
                 (
                     f"{appointment['appointment_date']} "
@@ -564,6 +564,7 @@ def appointment_slot_available(
             )
 
         except (ValueError, TypeError):
+
             continue
 
         existing_duration = (
@@ -584,6 +585,7 @@ def appointment_slot_available(
         )
 
         if overlap:
+
             return {
                 "valid": False,
                 "reason":
@@ -612,12 +614,14 @@ def find_available_slots(
         return []
 
     try:
+
         search_date = datetime.strptime(
             starting_date,
             "%Y-%m-%d"
         )
 
     except (ValueError, TypeError):
+
         search_date = datetime.now()
 
     available_slots = []
@@ -659,6 +663,7 @@ def find_available_slots(
         if day.date() == datetime.now().date():
 
             while slot < datetime.now():
+
                 slot += timedelta(
                     minutes=30
                 )
@@ -694,6 +699,7 @@ def find_available_slots(
                     len(available_slots)
                     >= max_slots
                 ):
+
                     return available_slots
 
             slot += timedelta(
@@ -706,6 +712,7 @@ def find_available_slots(
 def format_available_slots(slots):
 
     if not slots:
+
         return (
             "I couldn't find another open appointment "
             "within the next week."
@@ -785,33 +792,43 @@ def create_appointment(
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
-        INSERT INTO appointments (
+    try:
+
+        cursor.execute("""
+            INSERT INTO appointments (
+                customer_name,
+                phone_number,
+                vehicle,
+                service,
+                appointment_date,
+                appointment_time,
+                duration_minutes,
+                status,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
             customer_name,
-            phone_number,
+            normalize_phone(phone_number),
             vehicle,
             service,
             appointment_date,
             appointment_time,
-            duration_minutes,
-            status,
-            created_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        customer_name,
-        normalize_phone(phone_number),
-        vehicle,
-        service,
-        appointment_date,
-        appointment_time,
-        availability["duration"],
-        "Booked",
-        current_timestamp()
-    ))
+            availability["duration"],
+            "Booked",
+            current_timestamp()
+        ))
 
-    conn.commit()
-    conn.close()
+        conn.commit()
+
+    except Exception:
+
+        conn.rollback()
+        raise
+
+    finally:
+
+        conn.close()
 
     return {
         "success": True
@@ -839,19 +856,29 @@ def update_appointment_status(
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
-        UPDATE appointments
-        SET status = ?
-        WHERE id = ?
-    """, (
-        new_status,
-        appointment_id
-    ))
+    try:
 
-    conn.commit()
-    conn.close()
+        cursor.execute("""
+            UPDATE appointments
+            SET status = ?
+            WHERE id = ?
+        """, (
+            new_status,
+            appointment_id
+        ))
 
-    return True
+        conn.commit()
+
+        return True
+
+    except Exception:
+
+        conn.rollback()
+        raise
+
+    finally:
+
+        conn.close()
 
 
 def delete_appointment(
@@ -861,15 +888,25 @@ def delete_appointment(
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
-        DELETE FROM appointments
-        WHERE id = ?
-    """, (
-        appointment_id,
-    ))
+    try:
 
-    conn.commit()
-    conn.close()
+        cursor.execute("""
+            DELETE FROM appointments
+            WHERE id = ?
+        """, (
+            appointment_id,
+        ))
+
+        conn.commit()
+
+    except Exception:
+
+        conn.rollback()
+        raise
+
+    finally:
+
+        conn.close()
 
 
 # =====================================
@@ -942,18 +979,25 @@ def create_session():
         "customer_data": {
             "customer_name":
                 "Not provided",
+
             "phone_number":
                 "Not provided",
+
             "email":
                 "Not provided",
+
             "vehicle":
                 "Not provided",
+
             "requested_service":
                 "Not provided",
+
             "requested_time":
                 "Not provided",
+
             "appointment_date":
                 "Not provided",
+
             "appointment_time":
                 "Not provided"
         },
@@ -969,6 +1013,7 @@ def create_session():
 def parse_ai_json(text):
 
     if not text:
+
         raise ValueError(
             "AI returned an empty response."
         )
@@ -979,6 +1024,7 @@ def parse_ai_json(text):
 
         if text.startswith("```json"):
             text = text[7:]
+
         else:
             text = text[3:]
 
@@ -988,6 +1034,7 @@ def parse_ai_json(text):
         text = text.strip()
 
     try:
+
         return json.loads(text)
 
     except json.JSONDecodeError:
@@ -1000,6 +1047,7 @@ def parse_ai_json(text):
             and end != -1
             and end > start
         ):
+
             return json.loads(
                 text[start:end + 1]
             )
@@ -1036,9 +1084,11 @@ def update_customer_memory(
             )
         )
 
-        # Never erase information we already know.
         if new_value != "Not provided":
-            customer_data[field] = new_value
+
+            customer_data[field] = (
+                new_value
+            )
 
 
 # =====================================
@@ -1052,11 +1102,8 @@ def process_customer_message(
 
     try:
 
-        # -------------------------------------
-        # SESSION
-        # -------------------------------------
-
         if session_id not in conversations:
+
             conversations[
                 session_id
             ] = create_session()
@@ -1073,26 +1120,20 @@ def process_customer_message(
             "messages"
         ]
 
-        # -------------------------------------
-        # SAVE CUSTOMER MESSAGE
-        # -------------------------------------
-
         messages.append({
             "role": "user",
             "content": customer_message
         })
 
-        # Keep memory reasonably small.
         if len(messages) > 20:
-            messages[:] = messages[-20:]
+
+            messages[:] = (
+                messages[-20:]
+            )
 
         today = datetime.now().strftime(
             "%Y-%m-%d"
         )
-
-        # -------------------------------------
-        # OPENAI
-        # -------------------------------------
 
         response = client.responses.create(
 
@@ -1240,26 +1281,14 @@ Use exactly these keys:
             input=messages
         )
 
-        # -------------------------------------
-        # PARSE RESPONSE
-        # -------------------------------------
-
         lead_data = parse_ai_json(
             response.output_text
         )
-
-        # -------------------------------------
-        # UPDATE STRUCTURED MEMORY
-        # -------------------------------------
 
         update_customer_memory(
             customer_data,
             lead_data
         )
-
-        # -------------------------------------
-        # GET CURRENT VALUES
-        # -------------------------------------
 
         customer_name = clean_value(
             customer_data.get(
@@ -1316,6 +1345,7 @@ Use exactly these keys:
         )
 
         if suggested_reply == "Not provided":
+
             suggested_reply = (
                 "What else can I help you with?"
             )
@@ -1329,8 +1359,11 @@ Use exactly these keys:
             wants_booking,
             str
         ):
+
             wants_booking = (
-                wants_booking.strip().lower()
+                wants_booking
+                .strip()
+                .lower()
                 == "true"
             )
 
@@ -1430,10 +1463,6 @@ Use exactly these keys:
                 appointment_time
             )
 
-            # ---------------------------------
-            # BOOKING SUCCESS
-            # ---------------------------------
-
             if result["success"]:
 
                 booking_status = "booked"
@@ -1478,10 +1507,6 @@ Use exactly these keys:
                         "Booked"
                     )
 
-            # ---------------------------------
-            # BOOKING UNAVAILABLE
-            # ---------------------------------
-
             else:
 
                 booking_status = (
@@ -1506,21 +1531,16 @@ Use exactly these keys:
                     + alternative_text
                 )
 
-        # =====================================
-        # SAVE ASSISTANT MESSAGE
-        # =====================================
-
         messages.append({
             "role": "assistant",
             "content": suggested_reply
         })
 
         if len(messages) > 20:
-            messages[:] = messages[-20:]
 
-        # =====================================
-        # RETURN RESPONSE
-        # =====================================
+            messages[:] = (
+                messages[-20:]
+            )
 
         return {
             "response":
@@ -1532,10 +1552,6 @@ Use exactly these keys:
             "booking_status":
                 booking_status
         }
-
-    # =========================================
-    # ERROR HANDLING
-    # =========================================
 
     except Exception as error:
 

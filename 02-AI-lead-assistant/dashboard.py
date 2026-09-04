@@ -1,19 +1,37 @@
 import os
 import secrets
-import sqlite3
+
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    status
+)
+
 from fastapi.responses import FileResponse
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
+
+from fastapi.security import (
+    HTTPBasic,
+    HTTPBasicCredentials
+)
+
+from database import get_connection
 
 
 router = APIRouter()
+
 security = HTTPBasic()
 
-BASE_DIR = Path(__file__).resolve().parent
-DATABASE_PATH = BASE_DIR / "leads.db"
-DASHBOARD_PATH = BASE_DIR / "dashboard.html"
+BASE_DIR = Path(
+    __file__
+).resolve().parent
+
+DASHBOARD_PATH = (
+    BASE_DIR
+    / "dashboard.html"
+)
 
 
 # =====================================
@@ -21,7 +39,9 @@ DASHBOARD_PATH = BASE_DIR / "dashboard.html"
 # =====================================
 
 def verify_dashboard_login(
-    credentials: HTTPBasicCredentials = Depends(security)
+    credentials: HTTPBasicCredentials = Depends(
+        security
+    )
 ):
 
     expected_username = os.getenv(
@@ -32,31 +52,54 @@ def verify_dashboard_login(
         "DASHBOARD_PASSWORD"
     )
 
-    if not expected_username or not expected_password:
+    if (
+        not expected_username
+        or not expected_password
+    ):
+
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Dashboard login is not configured."
+            status_code=
+                status.HTTP_503_SERVICE_UNAVAILABLE,
+
+            detail=
+                "Dashboard login is not configured."
         )
 
     username_ok = secrets.compare_digest(
-        credentials.username.encode("utf-8"),
-        expected_username.encode("utf-8")
+        credentials.username.encode(
+            "utf-8"
+        ),
+
+        expected_username.encode(
+            "utf-8"
+        )
     )
 
     password_ok = secrets.compare_digest(
-        credentials.password.encode("utf-8"),
-        expected_password.encode("utf-8")
+        credentials.password.encode(
+            "utf-8"
+        ),
+
+        expected_password.encode(
+            "utf-8"
+        )
     )
 
     if not (
         username_ok
         and password_ok
     ):
+
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password.",
+            status_code=
+                status.HTTP_401_UNAUTHORIZED,
+
+            detail=
+                "Incorrect username or password.",
+
             headers={
-                "WWW-Authenticate": "Basic"
+                "WWW-Authenticate":
+                    "Basic"
             }
         )
 
@@ -90,64 +133,63 @@ def get_leads(
     )
 ):
 
-    conn = sqlite3.connect(
-        DATABASE_PATH
-    )
-
-    conn.row_factory = sqlite3.Row
-
+    conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
-        SELECT
-            id,
-            customer_name,
-            phone_number,
-            email,
-            vehicle,
-            requested_service,
-            requested_time,
-            status,
-            created_at
-        FROM leads
-        ORDER BY id DESC
-    """)
+    try:
 
-    rows = cursor.fetchall()
+        cursor.execute("""
+            SELECT
+                id,
+                customer_name,
+                phone_number,
+                email,
+                vehicle,
+                requested_service,
+                requested_time,
+                status,
+                created_at
+            FROM leads
+            ORDER BY id DESC
+        """)
 
-    conn.close()
+        rows = cursor.fetchall()
 
-    leads = []
+        leads = []
 
-    for row in rows:
+        for row in rows:
 
-        leads.append({
-            "id":
-                row["id"],
+            leads.append({
+                "id":
+                    row["id"],
 
-            "customer_name":
-                row["customer_name"],
+                "customer_name":
+                    row["customer_name"],
 
-            "phone_number":
-                row["phone_number"],
+                "phone_number":
+                    row["phone_number"],
 
-            "email":
-                row["email"],
+                "email":
+                    row["email"],
 
-            "vehicle":
-                row["vehicle"],
+                "vehicle":
+                    row["vehicle"],
 
-            "requested_service":
-                row["requested_service"],
+                "requested_service":
+                    row["requested_service"],
 
-            "requested_time":
-                row["requested_time"],
+                "requested_time":
+                    row["requested_time"],
 
-            "status":
-                row["status"],
+                "status":
+                    row["status"],
 
-            "created_at":
-                row["created_at"]
-        })
+                "created_at":
+                    row["created_at"]
+            })
 
-    return leads
+        return leads
+
+    finally:
+
+        conn.close()
