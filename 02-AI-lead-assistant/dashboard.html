@@ -1,131 +1,228 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
 
-    <title>Freedom Auto Detailing - Leads</title>
+    <title>Freedom Auto Detailing Dashboard</title>
 
     <style>
-
         * {
             box-sizing: border-box;
         }
 
         body {
             margin: 0;
-            background: #111;
-            color: white;
-            font-family: Arial, sans-serif;
+            min-height: 100vh;
+            background: #101010;
+            color: #ffffff;
+            font-family: Arial, Helvetica, sans-serif;
         }
 
-        .container {
-            max-width: 1200px;
-            margin: auto;
-            padding: 40px 20px;
+        .page {
+            width: 100%;
+            max-width: 1500px;
+            margin: 0 auto;
+            padding: 28px 38px 60px;
         }
 
-        .top {
+        .topbar {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 30px;
+            gap: 20px;
+            margin-bottom: 32px;
         }
 
-        h1 {
+        .title h1 {
             margin: 0;
+            font-size: 32px;
+            font-weight: 700;
         }
 
-        .subtitle {
-            color: #999;
-            margin-top: 6px;
+        .title p {
+            margin: 8px 0 0;
+            color: #a9b1bd;
+            font-size: 16px;
         }
 
-        .back-button {
+        .chat-button {
+            display: inline-block;
+            padding: 12px 22px;
+            border-radius: 9px;
+            background: #ffffff;
+            color: #111111;
             text-decoration: none;
-            background: white;
-            color: #111;
-            padding: 12px 18px;
-            border-radius: 8px;
-            font-weight: bold;
+            font-weight: 700;
         }
 
-        .card {
-            background: #1c1c1c;
+        .summary-grid {
+            display: grid;
+            grid-template-columns:
+                repeat(3, minmax(0, 1fr));
+            gap: 18px;
+            margin-bottom: 34px;
+        }
+
+        .summary-card {
+            background: #1d1d1d;
+            border: 1px solid #303030;
             border-radius: 15px;
-            overflow: hidden;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            padding: 22px;
+        }
+
+        .summary-label {
+            color: #a9b1bd;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .summary-number {
+            font-size: 30px;
+            font-weight: 700;
+        }
+
+        .section {
+            margin-bottom: 42px;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 14px;
+        }
+
+        .section-header h2 {
+            margin: 0;
+            font-size: 22px;
+        }
+
+        .section-count {
+            color: #a9b1bd;
+            font-size: 14px;
+        }
+
+        .table-container {
+            overflow-x: auto;
+            border-radius: 15px;
+            border: 1px solid #303030;
+            background: #1a1a1a;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
+            min-width: 1000px;
         }
 
         th {
-            background: #292929;
             text-align: left;
-            padding: 15px;
-            color: #aaa;
+            padding: 15px 14px;
+            background: #282828;
+            color: #c2c8d0;
             font-size: 13px;
+            font-weight: 600;
         }
 
         td {
-            padding: 15px;
-            border-top: 1px solid #333;
+            padding: 16px 14px;
+            border-top: 1px solid #303030;
+            vertical-align: middle;
+            font-size: 14px;
         }
 
-        tr:hover {
-            background: #222;
+        tbody tr:hover {
+            background: #202020;
         }
 
-        .empty {
-            padding: 50px;
-            text-align: center;
-            color: #888;
-        }
-
-        .status {
-            display: inline-block;
-            background: #333;
-            padding: 6px 10px;
-            border-radius: 20px;
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 7px 12px;
+            border-radius: 999px;
             font-size: 12px;
+            font-weight: 700;
+            white-space: nowrap;
+            background: #363636;
+        }
+
+        .status-new {
+            background: #363636;
+        }
+
+        .status-booked {
+            background: #1d4d32;
+        }
+
+        .status-completed {
+            background: #214263;
+        }
+
+        .status-contacted {
+            background: #5a471d;
+        }
+
+        .status-lost,
+        .status-cancelled {
+            background: #5a2525;
+        }
+
+        .empty-state {
+            padding: 30px;
+            text-align: center;
+            color: #999999;
+        }
+
+        .error-message {
+            padding: 18px;
+            border-radius: 10px;
+            background: #492020;
+            margin-bottom: 20px;
+            display: none;
         }
 
         @media (max-width: 800px) {
-
-            .card {
-                overflow-x: auto;
+            .page {
+                padding: 22px 16px 40px;
             }
 
-            table {
-                min-width: 900px;
+            .topbar {
+                align-items: flex-start;
+                flex-direction: column;
             }
 
+            .summary-grid {
+                grid-template-columns: 1fr;
+            }
         }
-
     </style>
-
 </head>
 
 <body>
 
-<div class="container">
+<div class="page">
 
-    <div class="top">
+    <div class="topbar">
 
-        <div>
-            <h1>Freedom Auto Detailing</h1>
-            <div class="subtitle">
-                AI Lead Dashboard
-            </div>
+        <div class="title">
+            <h1>
+                Freedom Auto Detailing
+            </h1>
+
+            <p>
+                AI Lead & Booking Dashboard
+            </p>
         </div>
 
         <a
+            class="chat-button"
             href="/"
-            class="back-button"
+            target="_blank"
         >
             Open Chat
         </a>
@@ -133,162 +230,651 @@
     </div>
 
 
-    <div class="card">
-
-        <table>
-
-            <thead>
-
-                <tr>
-                    <th>ID</th>
-                    <th>Customer</th>
-                    <th>Phone</th>
-                    <th>Email</th>
-                    <th>Vehicle</th>
-                    <th>Service</th>
-                    <th>Requested Time</th>
-                    <th>Status</th>
-                </tr>
-
-            </thead>
+    <div
+        id="error-message"
+        class="error-message"
+    ></div>
 
 
-            <tbody id="leadTable">
+    <!-- ==================================
+         SUMMARY
+    =================================== -->
 
-                <tr>
-                    <td
-                        colspan="8"
-                        class="empty"
-                    >
-                        Loading leads...
-                    </td>
-                </tr>
+    <div class="summary-grid">
 
-            </tbody>
+        <div class="summary-card">
+            <div class="summary-label">
+                Total Leads
+            </div>
 
-        </table>
+            <div
+                id="total-leads"
+                class="summary-number"
+            >
+                0
+            </div>
+        </div>
+
+
+        <div class="summary-card">
+            <div class="summary-label">
+                Booked Leads
+            </div>
+
+            <div
+                id="booked-leads"
+                class="summary-number"
+            >
+                0
+            </div>
+        </div>
+
+
+        <div class="summary-card">
+            <div class="summary-label">
+                Appointments
+            </div>
+
+            <div
+                id="total-appointments"
+                class="summary-number"
+            >
+                0
+            </div>
+        </div>
 
     </div>
+
+
+    <!-- ==================================
+         APPOINTMENTS
+    =================================== -->
+
+    <section class="section">
+
+        <div class="section-header">
+
+            <h2>
+                Appointments
+            </h2>
+
+            <span
+                id="appointment-count"
+                class="section-count"
+            >
+                0 appointments
+            </span>
+
+        </div>
+
+
+        <div class="table-container">
+
+            <table>
+
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Customer</th>
+                        <th>Phone</th>
+                        <th>Vehicle</th>
+                        <th>Service</th>
+                        <th>Date</th>
+                        <th>Time</th>
+                        <th>Duration</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+
+                <tbody id="appointments-body">
+
+                    <tr>
+                        <td
+                            colspan="9"
+                            class="empty-state"
+                        >
+                            Loading appointments...
+                        </td>
+                    </tr>
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </section>
+
+
+    <!-- ==================================
+         LEADS
+    =================================== -->
+
+    <section class="section">
+
+        <div class="section-header">
+
+            <h2>
+                Leads
+            </h2>
+
+            <span
+                id="lead-count"
+                class="section-count"
+            >
+                0 leads
+            </span>
+
+        </div>
+
+
+        <div class="table-container">
+
+            <table>
+
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Customer</th>
+                        <th>Phone</th>
+                        <th>Email</th>
+                        <th>Vehicle</th>
+                        <th>Service</th>
+                        <th>Requested Time</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+
+                <tbody id="leads-body">
+
+                    <tr>
+                        <td
+                            colspan="8"
+                            class="empty-state"
+                        >
+                            Loading leads...
+                        </td>
+                    </tr>
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </section>
 
 </div>
 
 
 <script>
 
-async function loadLeads() {
+    // =====================================
+    // HTML SAFETY
+    // =====================================
 
-    const table =
-        document.getElementById("leadTable");
+    function escapeHtml(value) {
+
+        if (
+            value === null ||
+            value === undefined
+        ) {
+            return "";
+        }
+
+        return String(value)
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;")
+            .replaceAll("'", "&#039;");
+    }
 
 
-    try {
+    // =====================================
+    // STATUS BADGES
+    // =====================================
+
+    function statusBadge(status) {
+
+        const cleanStatus =
+            status || "New";
+
+        const className =
+            "status-" +
+            cleanStatus
+                .toLowerCase()
+                .replaceAll(" ", "-");
+
+        return `
+            <span
+                class="status-badge ${className}"
+            >
+                ${escapeHtml(cleanStatus)}
+            </span>
+        `;
+    }
+
+
+    // =====================================
+    // FORMAT APPOINTMENT DATE
+    // =====================================
+
+    function formatDate(dateString) {
+
+        if (!dateString) {
+            return "Not provided";
+        }
+
+        const parts =
+            dateString.split("-");
+
+        if (parts.length !== 3) {
+            return dateString;
+        }
+
+        const year =
+            Number(parts[0]);
+
+        const month =
+            Number(parts[1]) - 1;
+
+        const day =
+            Number(parts[2]);
+
+        const date =
+            new Date(
+                year,
+                month,
+                day
+            );
+
+        return date.toLocaleDateString(
+            "en-US",
+            {
+                weekday: "short",
+                month: "short",
+                day: "numeric",
+                year: "numeric"
+            }
+        );
+    }
+
+
+    // =====================================
+    // FORMAT TIME
+    // =====================================
+
+    function formatTime(timeString) {
+
+        if (!timeString) {
+            return "Not provided";
+        }
+
+        const parts =
+            timeString.split(":");
+
+        if (parts.length < 2) {
+            return timeString;
+        }
+
+        let hour =
+            Number(parts[0]);
+
+        const minute =
+            parts[1];
+
+        const period =
+            hour >= 12
+                ? "PM"
+                : "AM";
+
+        hour =
+            hour % 12;
+
+        if (hour === 0) {
+            hour = 12;
+        }
+
+        return (
+            `${hour}:${minute} ${period}`
+        );
+    }
+
+
+    // =====================================
+    // FORMAT DURATION
+    // =====================================
+
+    function formatDuration(minutes) {
+
+        if (!minutes) {
+            return "—";
+        }
+
+        const hours =
+            Math.floor(
+                minutes / 60
+            );
+
+        const remaining =
+            minutes % 60;
+
+        if (
+            hours > 0 &&
+            remaining > 0
+        ) {
+            return (
+                `${hours}h ${remaining}m`
+            );
+        }
+
+        if (hours > 0) {
+            return `${hours}h`;
+        }
+
+        return `${remaining}m`;
+    }
+
+
+    // =====================================
+    // LOAD LEADS
+    // =====================================
+
+    async function loadLeads() {
 
         const response =
-            await fetch("/api/leads");
+            await fetch(
+                "/api/leads"
+            );
 
+        if (!response.ok) {
+            throw new Error(
+                "Could not load leads."
+            );
+        }
 
         const leads =
             await response.json();
 
+        const body =
+            document.getElementById(
+                "leads-body"
+            );
 
-        table.innerHTML = "";
-
+        body.innerHTML = "";
 
         if (leads.length === 0) {
 
-            table.innerHTML = `
+            body.innerHTML = `
                 <tr>
                     <td
                         colspan="8"
-                        class="empty"
+                        class="empty-state"
                     >
                         No leads yet.
                     </td>
                 </tr>
             `;
 
-            return;
+        } else {
+
+            for (const lead of leads) {
+
+                const row =
+                    document.createElement(
+                        "tr"
+                    );
+
+                row.innerHTML = `
+                    <td>
+                        ${escapeHtml(lead.id)}
+                    </td>
+
+                    <td>
+                        ${escapeHtml(
+                            lead.customer_name
+                        )}
+                    </td>
+
+                    <td>
+                        ${escapeHtml(
+                            lead.phone_number
+                        )}
+                    </td>
+
+                    <td>
+                        ${escapeHtml(
+                            lead.email
+                        )}
+                    </td>
+
+                    <td>
+                        ${escapeHtml(
+                            lead.vehicle
+                        )}
+                    </td>
+
+                    <td>
+                        ${escapeHtml(
+                            lead.requested_service
+                        )}
+                    </td>
+
+                    <td>
+                        ${escapeHtml(
+                            lead.requested_time
+                        )}
+                    </td>
+
+                    <td>
+                        ${statusBadge(
+                            lead.status
+                        )}
+                    </td>
+                `;
+
+                body.appendChild(row);
+            }
         }
 
+        const booked =
+            leads.filter(
+                lead =>
+                    lead.status === "Booked"
+            ).length;
 
-        leads.forEach(function(lead) {
+        document.getElementById(
+            "total-leads"
+        ).textContent =
+            leads.length;
 
-            const row =
-                document.createElement("tr");
+        document.getElementById(
+            "booked-leads"
+        ).textContent =
+            booked;
+
+        document.getElementById(
+            "lead-count"
+        ).textContent =
+            `${leads.length} ${
+                leads.length === 1
+                    ? "lead"
+                    : "leads"
+            }`;
+    }
 
 
-            row.innerHTML = `
+    // =====================================
+    // LOAD APPOINTMENTS
+    // =====================================
 
-                <td>
-                    ${lead.id ?? ""}
-                </td>
+    async function loadAppointments() {
 
-                <td>
-                    ${lead.customer_name ?? ""}
-                </td>
+        const response =
+            await fetch(
+                "/api/appointments"
+            );
 
-                <td>
-                    ${lead.phone_number ?? ""}
-                </td>
+        if (!response.ok) {
+            throw new Error(
+                "Could not load appointments."
+            );
+        }
 
-                <td>
-                    ${lead.email ?? ""}
-                </td>
+        const appointments =
+            await response.json();
 
-                <td>
-                    ${lead.vehicle ?? ""}
-                </td>
+        const body =
+            document.getElementById(
+                "appointments-body"
+            );
 
-                <td>
-                    ${lead.requested_service ?? ""}
-                </td>
+        body.innerHTML = "";
 
-                <td>
-                    ${lead.requested_time ?? ""}
-                </td>
+        if (
+            appointments.length === 0
+        ) {
 
-                <td>
-                    <span class="status">
-                        New Lead
-                    </span>
-                </td>
-
+            body.innerHTML = `
+                <tr>
+                    <td
+                        colspan="9"
+                        class="empty-state"
+                    >
+                        No appointments yet.
+                    </td>
+                </tr>
             `;
 
+        } else {
 
-            table.appendChild(row);
+            for (
+                const appointment
+                of appointments
+            ) {
 
-        });
+                const row =
+                    document.createElement(
+                        "tr"
+                    );
 
+                row.innerHTML = `
+                    <td>
+                        ${escapeHtml(
+                            appointment.id
+                        )}
+                    </td>
 
+                    <td>
+                        ${escapeHtml(
+                            appointment.customer_name
+                        )}
+                    </td>
+
+                    <td>
+                        ${escapeHtml(
+                            appointment.phone_number
+                        )}
+                    </td>
+
+                    <td>
+                        ${escapeHtml(
+                            appointment.vehicle
+                        )}
+                    </td>
+
+                    <td>
+                        ${escapeHtml(
+                            appointment.service
+                        )}
+                    </td>
+
+                    <td>
+                        ${escapeHtml(
+                            formatDate(
+                                appointment.appointment_date
+                            )
+                        )}
+                    </td>
+
+                    <td>
+                        ${escapeHtml(
+                            formatTime(
+                                appointment.appointment_time
+                            )
+                        )}
+                    </td>
+
+                    <td>
+                        ${escapeHtml(
+                            formatDuration(
+                                appointment.duration_minutes
+                            )
+                        )}
+                    </td>
+
+                    <td>
+                        ${statusBadge(
+                            appointment.status
+                        )}
+                    </td>
+                `;
+
+                body.appendChild(row);
+            }
+        }
+
+        document.getElementById(
+            "total-appointments"
+        ).textContent =
+            appointments.length;
+
+        document.getElementById(
+            "appointment-count"
+        ).textContent =
+            `${appointments.length} ${
+                appointments.length === 1
+                    ? "appointment"
+                    : "appointments"
+            }`;
     }
 
-    catch (error) {
 
-        console.error(error);
+    // =====================================
+    // LOAD DASHBOARD
+    // =====================================
 
+    async function loadDashboard() {
 
-        table.innerHTML = `
-            <tr>
-                <td
-                    colspan="8"
-                    class="empty"
-                >
-                    Could not load leads.
-                </td>
-            </tr>
-        `;
+        try {
 
+            await Promise.all([
+                loadLeads(),
+                loadAppointments()
+            ]);
+
+        } catch (error) {
+
+            console.error(error);
+
+            const errorBox =
+                document.getElementById(
+                    "error-message"
+                );
+
+            errorBox.textContent =
+                "There was a problem loading the dashboard.";
+
+            errorBox.style.display =
+                "block";
+        }
     }
 
-}
 
-
-loadLeads();
+    loadDashboard();
 
 </script>
 
-
 </body>
-
 </html>

@@ -1,37 +1,19 @@
 import os
 import secrets
-
 from pathlib import Path
 
-from fastapi import (
-    APIRouter,
-    Depends,
-    HTTPException,
-    status
-)
-
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse
-
-from fastapi.security import (
-    HTTPBasic,
-    HTTPBasicCredentials
-)
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
 from database import get_connection
 
 
 router = APIRouter()
-
 security = HTTPBasic()
 
-BASE_DIR = Path(
-    __file__
-).resolve().parent
-
-DASHBOARD_PATH = (
-    BASE_DIR
-    / "dashboard.html"
-)
+BASE_DIR = Path(__file__).resolve().parent
+DASHBOARD_PATH = BASE_DIR / "dashboard.html"
 
 
 # =====================================
@@ -39,67 +21,33 @@ DASHBOARD_PATH = (
 # =====================================
 
 def verify_dashboard_login(
-    credentials: HTTPBasicCredentials = Depends(
-        security
-    )
+    credentials: HTTPBasicCredentials = Depends(security)
 ):
+    expected_username = os.getenv("DASHBOARD_USERNAME")
+    expected_password = os.getenv("DASHBOARD_PASSWORD")
 
-    expected_username = os.getenv(
-        "DASHBOARD_USERNAME"
-    )
-
-    expected_password = os.getenv(
-        "DASHBOARD_PASSWORD"
-    )
-
-    if (
-        not expected_username
-        or not expected_password
-    ):
-
+    if not expected_username or not expected_password:
         raise HTTPException(
-            status_code=
-                status.HTTP_503_SERVICE_UNAVAILABLE,
-
-            detail=
-                "Dashboard login is not configured."
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Dashboard login is not configured."
         )
 
     username_ok = secrets.compare_digest(
-        credentials.username.encode(
-            "utf-8"
-        ),
-
-        expected_username.encode(
-            "utf-8"
-        )
+        credentials.username.encode("utf-8"),
+        expected_username.encode("utf-8")
     )
 
     password_ok = secrets.compare_digest(
-        credentials.password.encode(
-            "utf-8"
-        ),
-
-        expected_password.encode(
-            "utf-8"
-        )
+        credentials.password.encode("utf-8"),
+        expected_password.encode("utf-8")
     )
 
-    if not (
-        username_ok
-        and password_ok
-    ):
-
+    if not (username_ok and password_ok):
         raise HTTPException(
-            status_code=
-                status.HTTP_401_UNAUTHORIZED,
-
-            detail=
-                "Incorrect username or password.",
-
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password.",
             headers={
-                "WWW-Authenticate":
-                    "Basic"
+                "WWW-Authenticate": "Basic"
             }
         )
 
@@ -112,11 +60,8 @@ def verify_dashboard_login(
 
 @router.get("/dashboard")
 def dashboard(
-    _: str = Depends(
-        verify_dashboard_login
-    )
+    _: str = Depends(verify_dashboard_login)
 ):
-
     return FileResponse(
         DASHBOARD_PATH
     )
@@ -128,16 +73,12 @@ def dashboard(
 
 @router.get("/api/leads")
 def get_leads(
-    _: str = Depends(
-        verify_dashboard_login
-    )
+    _: str = Depends(verify_dashboard_login)
 ):
-
     conn = get_connection()
     cursor = conn.cursor()
 
     try:
-
         cursor.execute("""
             SELECT
                 id,
@@ -158,38 +99,73 @@ def get_leads(
         leads = []
 
         for row in rows:
-
             leads.append({
-                "id":
-                    row["id"],
-
-                "customer_name":
-                    row["customer_name"],
-
-                "phone_number":
-                    row["phone_number"],
-
-                "email":
-                    row["email"],
-
-                "vehicle":
-                    row["vehicle"],
-
-                "requested_service":
-                    row["requested_service"],
-
-                "requested_time":
-                    row["requested_time"],
-
-                "status":
-                    row["status"],
-
-                "created_at":
-                    row["created_at"]
+                "id": row["id"],
+                "customer_name": row["customer_name"],
+                "phone_number": row["phone_number"],
+                "email": row["email"],
+                "vehicle": row["vehicle"],
+                "requested_service": row["requested_service"],
+                "requested_time": row["requested_time"],
+                "status": row["status"],
+                "created_at": row["created_at"]
             })
 
         return leads
 
     finally:
+        conn.close()
 
+
+# =====================================
+# APPOINTMENTS API
+# =====================================
+
+@router.get("/api/appointments")
+def get_appointments(
+    _: str = Depends(verify_dashboard_login)
+):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("""
+            SELECT
+                id,
+                customer_name,
+                phone_number,
+                vehicle,
+                service,
+                appointment_date,
+                appointment_time,
+                duration_minutes,
+                status,
+                created_at
+            FROM appointments
+            ORDER BY
+                appointment_date ASC,
+                appointment_time ASC
+        """)
+
+        rows = cursor.fetchall()
+
+        appointments = []
+
+        for row in rows:
+            appointments.append({
+                "id": row["id"],
+                "customer_name": row["customer_name"],
+                "phone_number": row["phone_number"],
+                "vehicle": row["vehicle"],
+                "service": row["service"],
+                "appointment_date": row["appointment_date"],
+                "appointment_time": row["appointment_time"],
+                "duration_minutes": row["duration_minutes"],
+                "status": row["status"],
+                "created_at": row["created_at"]
+            })
+
+        return appointments
+
+    finally:
         conn.close()
