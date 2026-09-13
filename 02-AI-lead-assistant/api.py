@@ -1,14 +1,36 @@
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse
-from pydantic import BaseModel
-from uuid import UUID
+import os
+import html
+import json
 import traceback
 
-from lead_assistant import process_customer_message
-from dashboard import router as dashboard_router
+from fastapi import (
+    FastAPI,
+    Request
+)
+
+from fastapi.responses import (
+    HTMLResponse,
+    JSONResponse
+)
+
+from pydantic import BaseModel
+
+from starlette.middleware.sessions import (
+    SessionMiddleware
+)
+
+from lead_assistant import (
+    process_customer_message
+)
 
 from database import (
+    get_default_business,
+    get_business_by_slug,
     check_database_rate_limit
+)
+
+from dashboard import (
+    router as dashboard_router
 )
 
 
@@ -16,7 +38,34 @@ from database import (
 # APP
 # =====================================
 
-app = FastAPI()
+app = FastAPI(
+    title="AI Business Assistant"
+)
+
+
+# =====================================
+# SESSION MIDDLEWARE
+# =====================================
+
+SESSION_SECRET = os.getenv(
+    "SESSION_SECRET",
+    "local-development-secret-change-before-production"
+)
+
+
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=SESSION_SECRET,
+    session_cookie="ai_business_owner_session",
+    max_age=60 * 60 * 12,
+    same_site="lax",
+    https_only=False
+)
+
+
+# =====================================
+# DASHBOARD ROUTER
+# =====================================
 
 app.include_router(
     dashboard_router
@@ -24,216 +73,40 @@ app.include_router(
 
 
 # =====================================
-# PROTECTION SETTINGS
-# =====================================
-
-MAX_MESSAGE_LENGTH = 500
-
-RATE_LIMIT_WINDOW_SECONDS = 60
-
-# PRODUCTION LIMIT
-RATE_LIMIT_MAX_REQUESTS = 15
-
-MIN_REQUEST_INTERVAL_SECONDS = 0.75
-
-
-# =====================================
 # REQUEST MODEL
 # =====================================
 
 class CustomerMessage(BaseModel):
+
     message: str
+
     session_id: str
 
-
-# =====================================
-# CLIENT IP
-# =====================================
-
-def get_client_ip(request: Request):
-
-    forwarded_for = request.headers.get(
-        "x-forwarded-for"
-    )
-
-    if forwarded_for:
-
-        return (
-            forwarded_for
-            .split(",")[0]
-            .strip()
-        )
-
-    if request.client:
-
-        return request.client.host
-
-    return "unknown"
+    business_slug: str | None = None
 
 
 # =====================================
-# SESSION VALIDATION
+# CHAT PAGE
 # =====================================
 
-def validate_session_id(
-    session_id
+def build_chat_page(
+    business_name,
+    business_slug
 ):
 
-    if not session_id:
-
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid session."
-        )
-
-    if len(session_id) > 100:
-
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid session."
-        )
-
-    try:
-
-        UUID(session_id)
-
-    except (
-        ValueError,
-        TypeError,
-        AttributeError
-    ):
-
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid session."
-        )
-
-
-# =====================================
-# MESSAGE VALIDATION
-# =====================================
-
-def validate_message(
-    message
-):
-
-    if message is None:
-
-        raise HTTPException(
-            status_code=400,
-            detail="Please enter a message."
-        )
-
-    message = message.strip()
-
-    if not message:
-
-        raise HTTPException(
-            status_code=400,
-            detail="Please enter a message."
-        )
-
-    if (
-        len(message)
-        > MAX_MESSAGE_LENGTH
-    ):
-
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Messages must be under "
-                f"{MAX_MESSAGE_LENGTH} characters."
-            )
-        )
-
-    return message
-
-
-# =====================================
-# DATABASE RATE LIMIT
-# =====================================
-
-def enforce_rate_limit(
-    request,
-    session_id
-):
-
-    client_ip = get_client_ip(
-        request
+    safe_business_name = html.escape(
+        str(business_name)
     )
 
-    client_key = (
-        f"{client_ip}:"
-        f"{session_id}"
-    )
 
-    result = (
-        check_database_rate_limit(
-
-            client_key=
-                client_key,
-
-            max_requests=
-                RATE_LIMIT_MAX_REQUESTS,
-
-            window_seconds=
-                RATE_LIMIT_WINDOW_SECONDS,
-
-            minimum_interval_seconds=
-                MIN_REQUEST_INTERVAL_SECONDS
+    javascript_business_slug = (
+        json.dumps(
+            str(business_slug)
         )
     )
 
 
-    # ---------------------------------
-    # ALLOWED
-    # ---------------------------------
-
-    if result.get(
-        "allowed",
-        False
-    ):
-
-        return
-
-
-    # ---------------------------------
-    # BLOCKED
-    # ---------------------------------
-
-    wait_seconds = result.get(
-        "wait_seconds",
-        1
-    )
-
-    raise HTTPException(
-
-        status_code=429,
-
-        detail=(
-            "You've sent too many messages. "
-            f"Please wait about "
-            f"{wait_seconds} seconds."
-        ),
-
-        headers={
-            "Retry-After":
-                str(wait_seconds)
-        }
-    )
-
-
-# =====================================
-# CUSTOMER WEBSITE
-# =====================================
-
-@app.get(
-    "/",
-    response_class=HTMLResponse
-)
-def home():
-
-    return """
+    page = """
 <!DOCTYPE html>
 
 <html lang="en">
@@ -248,7 +121,7 @@ def home():
     >
 
     <title>
-        Freedom Auto Detailing
+        __BUSINESS_NAME__
     </title>
 
 
@@ -267,84 +140,98 @@ def home():
 
             display: flex;
 
-            align-items: center;
-
             justify-content: center;
 
-            background: #111111;
+            align-items: center;
 
-            color: #ffffff;
+            background: #101010;
 
             font-family:
                 Arial,
                 Helvetica,
                 sans-serif;
+
         }
 
 
-        .chat-card {
+        .chat-container {
 
             width: 420px;
 
             max-width:
-                calc(100vw - 30px);
+                calc(
+                    100vw - 30px
+                );
 
-            height: 680px;
+            height: 650px;
 
             max-height:
-                calc(100vh - 30px);
+                calc(
+                    100vh - 30px
+                );
+
+            background: #1c1c1c;
+
+            border-radius: 18px;
+
+            overflow: hidden;
 
             display: flex;
 
             flex-direction: column;
 
-            overflow: hidden;
-
-            background: #1b1b1b;
-
-            border-radius: 18px;
-
             box-shadow:
-                0 20px 60px
+                0
+                20px
+                60px
                 rgba(
                     0,
                     0,
                     0,
                     0.45
                 );
+
         }
 
 
-        .header {
+        .chat-header {
+
+            background: #272727;
 
             padding: 20px;
 
-            background: #282828;
+            flex-shrink: 0;
+
         }
 
 
-        .header h1 {
+        .chat-header h1 {
 
             margin: 0;
 
+            color: white;
+
             font-size: 24px;
+
         }
 
 
-        .header p {
+        .chat-header p {
 
             margin:
                 6px
                 0
+                0
                 0;
 
-            color: #b8c0cc;
+            color: #bdbdbd;
 
             font-size: 14px;
+
         }
 
 
-        .messages {
+        .chat-messages {
 
             flex: 1;
 
@@ -356,11 +243,12 @@ def home():
 
             flex-direction: column;
 
-            gap: 12px;
+            gap: 14px;
+
         }
 
 
-        .bubble {
+        .message {
 
             max-width: 78%;
 
@@ -368,122 +256,148 @@ def home():
                 12px
                 15px;
 
-            border-radius: 15px;
+            border-radius: 16px;
 
             line-height: 1.4;
 
+            font-size: 16px;
+
             word-wrap: break-word;
+
         }
 
 
-        .bot {
+        .assistant {
 
             align-self: flex-start;
 
-            background: #363636;
+            background: #353535;
+
+            color: white;
+
+            border-bottom-left-radius:
+                6px;
+
         }
 
 
-        .user {
+        .customer {
 
             align-self: flex-end;
 
-            background: #ffffff;
+            background: white;
 
-            color: #111111;
+            color: black;
+
+            border-bottom-right-radius:
+                6px;
+
         }
 
 
         .typing {
 
+            display: none;
+
             align-self: flex-start;
 
-            background: #363636;
+            background: #353535;
 
-            color: #cccccc;
+            color: #cfcfcf;
 
-            display: none;
+            padding:
+                10px
+                14px;
+
+            border-radius: 16px;
+
+            font-size: 14px;
+
         }
 
 
-        .input-area {
+        .chat-input-area {
+
+            background: #272727;
+
+            padding: 14px;
+
+            flex-shrink: 0;
+
+        }
+
+
+        .input-row {
 
             display: flex;
 
             gap: 10px;
 
-            padding: 15px;
-
-            background: #292929;
         }
 
 
-        #message-input {
+        #messageInput {
 
             flex: 1;
 
             min-width: 0;
 
-            border: 0;
+            padding:
+                12px
+                14px;
+
+            border: none;
+
+            border-radius: 8px;
 
             outline: none;
 
-            border-radius: 8px;
+            font-size: 14px;
+
+        }
+
+
+        #sendButton {
 
             padding:
                 12px
-                13px;
+                20px;
 
-            font-size: 14px;
-        }
-
-
-        #send-button {
-
-            border: 0;
+            border: none;
 
             border-radius: 8px;
 
-            padding:
-                0
-                18px;
+            background: white;
+
+            color: black;
+
+            font-weight: bold;
 
             cursor: pointer;
 
-            font-weight: 700;
         }
 
 
-        #send-button:disabled {
+        #sendButton:disabled {
+
+            opacity: 0.55;
 
             cursor: not-allowed;
 
-            opacity: 0.6;
         }
 
 
-        .counter {
+        .input-info {
 
-            padding:
-                0
-                16px
-                8px;
-
-            background: #292929;
+            margin-top: 7px;
 
             text-align: right;
 
-            color: #8f98a4;
+            color: #aaa;
 
             font-size: 11px;
+
         }
-
-
-        .counter.warning {
-
-            color: #ffcc66;
-        }
-
 
     </style>
 
@@ -492,477 +406,457 @@ def home():
 
 <body>
 
-
-<div class="chat-card">
-
-
-    <div class="header">
-
-        <h1>
-            Freedom Auto Detailing
-        </h1>
-
-        <p>
-            AI Assistant • Online
-        </p>
-
-    </div>
+    <div class="chat-container">
 
 
-    <div
-        id="messages"
-        class="messages"
-    >
+        <div class="chat-header">
 
-        <div class="bubble bot">
-            Hi! How can I help you with your vehicle today?
+            <h1>
+                __BUSINESS_NAME__
+            </h1>
+
+            <p>
+                AI Assistant • Online
+            </p>
+
         </div>
 
 
         <div
-            id="typing"
-            class="bubble typing"
+            class="chat-messages"
+            id="chatMessages"
         >
-            Typing...
+
+            <div
+                class="message assistant"
+            >
+                Hi! How can I help you today?
+            </div>
+
+
+            <div
+                class="typing"
+                id="typingIndicator"
+            >
+                Typing...
+            </div>
+
         </div>
 
+
+        <div class="chat-input-area">
+
+            <div class="input-row">
+
+                <input
+                    id="messageInput"
+                    type="text"
+                    maxlength="500"
+                    placeholder="Type your message..."
+                    autocomplete="off"
+                >
+
+
+                <button
+                    id="sendButton"
+                    type="button"
+                >
+                    Send
+                </button>
+
+            </div>
+
+
+            <div
+                class="input-info"
+                id="characterCounter"
+            >
+                0 / 500
+            </div>
+
+        </div>
+
+
     </div>
-
-
-    <div class="input-area">
-
-        <input
-            id="message-input"
-            type="text"
-            maxlength="500"
-            placeholder="Type your message..."
-            autocomplete="off"
-        >
-
-
-        <button
-            id="send-button"
-        >
-            Send
-        </button>
-
-    </div>
-
-
-    <div
-        id="counter"
-        class="counter"
-    >
-        0 / 500
-    </div>
-
-
-</div>
 
 
 <script>
 
 
-    // =================================
-    // SESSION
-    // =================================
-
-    let sessionId =
-        localStorage.getItem(
-            "freedom_detail_session"
-        );
+const BUSINESS_SLUG =
+    __BUSINESS_SLUG__;
 
 
-    if (!sessionId) {
+const chatMessages =
+    document.getElementById(
+        "chatMessages"
+    );
+
+
+const messageInput =
+    document.getElementById(
+        "messageInput"
+    );
+
+
+const sendButton =
+    document.getElementById(
+        "sendButton"
+    );
+
+
+const typingIndicator =
+    document.getElementById(
+        "typingIndicator"
+    );
+
+
+const characterCounter =
+    document.getElementById(
+        "characterCounter"
+    );
+
+
+const sessionStorageKey =
+    "ai_business_session_"
+    + BUSINESS_SLUG;
+
+
+let sessionId =
+    localStorage.getItem(
+        sessionStorageKey
+    );
+
+
+if (!sessionId) {
+
+    if (
+        window.crypto
+        &&
+        crypto.randomUUID
+    ) {
 
         sessionId =
             crypto.randomUUID();
 
-        localStorage.setItem(
-            "freedom_detail_session",
-            sessionId
-        );
+    } else {
+
+        sessionId =
+            Date.now().toString()
+            + "-"
+            + Math.random()
+                .toString(36)
+                .substring(2);
+
     }
 
 
-    // =================================
-    // ELEMENTS
-    // =================================
+    localStorage.setItem(
+        sessionStorageKey,
+        sessionId
+    );
 
-    const messages =
-        document.getElementById(
-            "messages"
+}
+
+
+function addMessage(
+    text,
+    sender
+) {
+
+    const message =
+        document.createElement(
+            "div"
         );
 
 
-    const typing =
-        document.getElementById(
-            "typing"
-        );
-
-
-    const input =
-        document.getElementById(
-            "message-input"
-        );
-
-
-    const sendButton =
-        document.getElementById(
-            "send-button"
-        );
-
-
-    const counter =
-        document.getElementById(
-            "counter"
-        );
-
-
-    // =================================
-    // ADD MESSAGE
-    // =================================
-
-    function addMessage(
-        text,
+    message.classList.add(
+        "message",
         sender
-    ) {
-
-        const bubble =
-            document.createElement(
-                "div"
-            );
-
-
-        bubble.classList.add(
-            "bubble",
-            sender
-        );
-
-
-        bubble.textContent =
-            text;
-
-
-        messages.insertBefore(
-            bubble,
-            typing
-        );
-
-
-        messages.scrollTop =
-            messages.scrollHeight;
-    }
-
-
-    // =================================
-    // CHARACTER COUNTER
-    // =================================
-
-    input.addEventListener(
-
-        "input",
-
-        () => {
-
-            const length =
-                input.value.length;
-
-
-            counter.textContent =
-                `${length} / 500`;
-
-
-            if (
-                length >= 450
-            ) {
-
-                counter.classList.add(
-                    "warning"
-                );
-
-            } else {
-
-                counter.classList.remove(
-                    "warning"
-                );
-            }
-        }
     );
 
 
-    // =================================
-    // SEND MESSAGE
-    // =================================
-
-    async function sendMessage() {
+    message.textContent =
+        text;
 
 
-        const message =
-            input.value.trim();
+    chatMessages.insertBefore(
+        message,
+        typingIndicator
+    );
 
 
-        if (!message) {
+    chatMessages.scrollTop =
+        chatMessages.scrollHeight;
 
-            return;
-        }
-
-
-        if (
-            message.length > 500
-        ) {
-
-            addMessage(
-                "That message is too long. Please keep it under 500 characters.",
-                "bot"
-            );
-
-            return;
-        }
+}
 
 
-        // -----------------------------
-        // LOCK INPUT
-        // -----------------------------
+function showTyping() {
 
-        input.value = "";
-
-
-        counter.textContent =
-            "0 / 500";
+    typingIndicator.style.display =
+        "block";
 
 
-        counter.classList.remove(
-            "warning"
-        );
+    chatMessages.scrollTop =
+        chatMessages.scrollHeight;
+
+}
 
 
-        input.disabled =
-            true;
+function hideTyping() {
+
+    typingIndicator.style.display =
+        "none";
+
+}
 
 
-        sendButton.disabled =
-            true;
+async function sendMessage() {
+
+    const message =
+        messageInput.value.trim();
 
 
-        // -----------------------------
-        // USER MESSAGE
-        // -----------------------------
+    if (!message) {
+
+        return;
+
+    }
+
+
+    if (
+        message.length > 500
+    ) {
 
         addMessage(
-            message,
-            "user"
+            "Please keep your message under 500 characters.",
+            "assistant"
         );
 
+        return;
 
-        // -----------------------------
-        // TYPING
-        // -----------------------------
-
-        typing.style.display =
-            "block";
+    }
 
 
-        messages.scrollTop =
-            messages.scrollHeight;
+    addMessage(
+        message,
+        "customer"
+    );
 
 
-        try {
+    messageInput.value =
+        "";
 
 
-            const response =
-                await fetch(
+    updateCharacterCounter();
 
-                    "/message",
 
-                    {
+    sendButton.disabled =
+        true;
 
-                        method:
-                            "POST",
 
-                        headers: {
+    showTyping();
 
-                            "Content-Type":
-                                "application/json"
-                        },
 
-                        body:
-                            JSON.stringify({
+    try {
+
+        const response =
+            await fetch(
+                "/message",
+                {
+
+                    method:
+                        "POST",
+
+                    headers: {
+
+                        "Content-Type":
+                            "application/json"
+
+                    },
+
+                    body:
+                        JSON.stringify(
+                            {
 
                                 message:
                                     message,
 
                                 session_id:
-                                    sessionId
-                            })
-                    }
-                );
+                                    sessionId,
 
+                                business_slug:
+                                    BUSINESS_SLUG
 
-            const rawText =
-                await response.text();
+                            }
+                        )
 
-
-            let data = null;
-
-
-            try {
-
-                data =
-                    JSON.parse(
-                        rawText
-                    );
-
-            } catch (
-                parseError
-            ) {
-
-                console.error(
-                    "Invalid server response:",
-                    rawText
-                );
-            }
-
-
-            typing.style.display =
-                "none";
-
-
-            // -------------------------
-            // RATE LIMIT
-            // -------------------------
-
-            if (
-                response.status === 429
-            ) {
-
-                addMessage(
-                    data?.detail
-                    ||
-                    "You've sent too many messages. Please wait a moment.",
-                    "bot"
-                );
-
-                return;
-            }
-
-
-            // -------------------------
-            // OTHER ERROR
-            // -------------------------
-
-            if (!response.ok) {
-
-                addMessage(
-                    data?.detail
-                    ||
-                    "Sorry, I couldn't process that message.",
-                    "bot"
-                );
-
-                return;
-            }
-
-
-            // -------------------------
-            // SUCCESS
-            // -------------------------
-
-            if (
-                data
-                &&
-                data.response
-            ) {
-
-                addMessage(
-                    data.response,
-                    "bot"
-                );
-
-            } else {
-
-                addMessage(
-                    "Sorry, I couldn't connect to the assistant.",
-                    "bot"
-                );
-            }
-
-
-        } catch (
-            error
-        ) {
-
-
-            console.error(
-                error
+                }
             );
 
 
-            typing.style.display =
-                "none";
+        const rawText =
+            await response.text();
+
+
+        let data;
+
+
+        try {
+
+            data =
+                JSON.parse(
+                    rawText
+                );
+
+        } catch (
+            parseError
+        ) {
+
+            console.error(
+                "Invalid server response:",
+                rawText
+            );
+
+
+            throw new Error(
+                "Invalid server response"
+            );
+
+        }
+
+
+        hideTyping();
+
+
+        if (
+            response.status
+            === 429
+        ) {
+
+            addMessage(
+                data.response
+                ||
+                "You've sent too many messages. Please wait a moment.",
+                "assistant"
+            );
+
+            return;
+
+        }
+
+
+        if (
+            !response.ok
+        ) {
+
+            console.error(
+                "Server error:",
+                data
+            );
 
 
             addMessage(
+                data.response
+                ||
                 "Sorry, I couldn't connect to the assistant.",
-                "bot"
+                "assistant"
             );
 
+            return;
 
-        } finally {
-
-
-            input.disabled =
-                false;
-
-
-            sendButton.disabled =
-                false;
-
-
-            input.focus();
         }
+
+
+        addMessage(
+            data.response
+            ||
+            "Sorry, I had trouble processing that.",
+            "assistant"
+        );
+
+
+    } catch (
+        error
+    ) {
+
+        hideTyping();
+
+
+        console.error(
+            "Chat error:",
+            error
+        );
+
+
+        addMessage(
+            "Sorry, I couldn't connect to the assistant.",
+            "assistant"
+        );
+
+
+    } finally {
+
+        sendButton.disabled =
+            false;
+
+
+        messageInput.focus();
+
     }
 
-
-    // =================================
-    // SEND BUTTON
-    // =================================
-
-    sendButton.addEventListener(
-        "click",
-        sendMessage
-    );
+}
 
 
-    // =================================
-    // ENTER KEY
-    // =================================
+function updateCharacterCounter() {
 
-    input.addEventListener(
+    characterCounter.textContent =
+        messageInput.value.length
+        + " / 500";
 
-        "keydown",
+}
 
-        event => {
 
-            if (
-                event.key === "Enter"
-                &&
-                !event.shiftKey
-            ) {
+sendButton.addEventListener(
+    "click",
+    sendMessage
+);
 
-                event.preventDefault();
 
-                sendMessage();
-            }
+messageInput.addEventListener(
+    "keydown",
+    function(
+        event
+    ) {
+
+        if (
+            event.key
+            === "Enter"
+            &&
+            !event.shiftKey
+        ) {
+
+            event.preventDefault();
+
+            sendMessage();
+
         }
-    );
+
+    }
+);
 
 
-    input.focus();
+messageInput.addEventListener(
+    "input",
+    updateCharacterCounter
+);
+
+
+messageInput.focus();
 
 
 </script>
-
 
 </body>
 
@@ -970,25 +864,135 @@ def home():
 """
 
 
+    page = page.replace(
+        "__BUSINESS_NAME__",
+        safe_business_name
+    )
+
+
+    page = page.replace(
+        "__BUSINESS_SLUG__",
+        javascript_business_slug
+    )
+
+
+    return page
+
+
+# =====================================
+# DEFAULT CHAT
+# =====================================
+
+@app.get(
+    "/",
+    response_class=HTMLResponse
+)
+def home():
+
+    business = (
+        get_default_business()
+    )
+
+
+    if not business:
+
+        return HTMLResponse(
+            content="""
+                <html>
+                    <body>
+                        <h1>
+                            Business unavailable
+                        </h1>
+                    </body>
+                </html>
+            """,
+            status_code=404
+        )
+
+
+    return HTMLResponse(
+        content=build_chat_page(
+            business["name"],
+            business["slug"]
+        )
+    )
+
+
+# =====================================
+# BUSINESS CHAT
+# =====================================
+
+@app.get(
+    "/b/{business_slug}",
+    response_class=HTMLResponse
+)
+def business_chat(
+    business_slug: str
+):
+
+    business = (
+        get_business_by_slug(
+            business_slug
+        )
+    )
+
+
+    if not business:
+
+        return HTMLResponse(
+            content="""
+                <html>
+
+                    <body
+                        style="
+                            background:#101010;
+                            color:white;
+                            font-family:Arial;
+                            text-align:center;
+                            padding-top:100px;
+                        "
+                    >
+
+                        <h1>
+                            Business not found
+                        </h1>
+
+                        <p>
+                            This AI assistant is not available.
+                        </p>
+
+                    </body>
+
+                </html>
+            """,
+            status_code=404
+        )
+
+
+    return HTMLResponse(
+        content=build_chat_page(
+            business["name"],
+            business["slug"]
+        )
+    )
+
+
 # =====================================
 # MESSAGE API
 # =====================================
 
-@app.post("/message")
-def message_endpoint(
+@app.post(
+    "/message"
+)
+def message(
     customer: CustomerMessage,
     request: Request
 ):
 
     try:
 
-
-        # =================================
-        # VALIDATE SESSION
-        # =================================
-
-        validate_session_id(
-            customer.session_id
+        customer_message = (
+            customer.message.strip()
         )
 
 
@@ -996,33 +1000,201 @@ def message_endpoint(
         # VALIDATE MESSAGE
         # =================================
 
-        clean_message = (
-            validate_message(
-                customer.message
+        if not customer_message:
+
+            return {
+
+                "response":
+                    "Please enter a message.",
+
+                "lead_status":
+                    "none",
+
+                "booking_status":
+                    "none"
+
+            }
+
+
+        if (
+            len(
+                customer_message
+            )
+            > 500
+        ):
+
+            return {
+
+                "response":
+                    "Please keep your message under 500 characters.",
+
+                "lead_status":
+                    "none",
+
+                "booking_status":
+                    "none"
+
+            }
+
+
+        # =================================
+        # FIND BUSINESS
+        # =================================
+
+        if (
+            customer.business_slug
+        ):
+
+            business = (
+                get_business_by_slug(
+                    customer.business_slug
+                )
+            )
+
+        else:
+
+            business = (
+                get_default_business()
+            )
+
+
+        if not business:
+
+            return JSONResponse(
+                status_code=404,
+                content={
+
+                    "response":
+                        "Sorry, this business is currently unavailable.",
+
+                    "lead_status":
+                        "error",
+
+                    "booking_status":
+                        "error"
+
+                }
+            )
+
+
+        business_id = (
+            business["id"]
+        )
+
+
+        # =================================
+        # CLIENT IDENTITY
+        # =================================
+
+        client_ip = (
+            "unknown"
+        )
+
+
+        if (
+            request.client
+        ):
+
+            client_ip = (
+                request.client.host
+            )
+
+
+        client_key = (
+
+            str(
+                business_id
+            )
+
+            + ":"
+
+            + client_ip
+
+            + ":"
+
+            + customer.session_id
+
+        )
+
+
+        # =================================
+        # RATE LIMIT
+        # =================================
+
+        rate_limit = (
+            check_database_rate_limit(
+
+                client_key=
+                    client_key,
+
+                max_requests=
+                    15,
+
+                window_seconds=
+                    60,
+
+                minimum_interval_seconds=
+                    0,
+
+                business_id=
+                    business_id
+
             )
         )
 
 
-        # =================================
-        # DATABASE RATE LIMIT
-        #
-        # THIS RUNS BEFORE OPENAI.
-        # =================================
+        if not rate_limit[
+            "allowed"
+        ]:
 
-        enforce_rate_limit(
-            request,
-            customer.session_id
-        )
+            wait_seconds = (
+                rate_limit.get(
+                    "wait_seconds",
+                    60
+                )
+            )
+
+
+            return JSONResponse(
+                status_code=429,
+                content={
+
+                    "response":
+                        (
+                            "You've sent too many messages. "
+                            "Please wait about "
+                            + str(
+                                wait_seconds
+                            )
+                            + " seconds."
+                        ),
+
+                    "lead_status":
+                        "rate_limited",
+
+                    "booking_status":
+                        "none"
+
+                }
+            )
 
 
         # =================================
-        # AI ASSISTANT
+        # PROCESS MESSAGE
         # =================================
 
         result = (
             process_customer_message(
-                clean_message,
-                customer.session_id
+
+                customer_message=
+                    customer_message,
+
+                session_id=
+                    customer.session_id,
+
+                business_id=
+                    business_id
+
             )
         )
 
@@ -1030,50 +1202,74 @@ def message_endpoint(
         return result
 
 
-    # =====================================
-    # EXPECTED HTTP ERRORS
-    # =====================================
-
-    except HTTPException:
-
-        raise
-
-
-    # =====================================
-    # UNEXPECTED ERROR
-    # =====================================
-
     except Exception as error:
-
 
         print(
             "\n"
-            "=====================================\n"
-            "MESSAGE API ERROR\n"
             "====================================="
         )
 
+        print(
+            "MESSAGE API ERROR"
+        )
+
+        print(
+            "====================================="
+        )
 
         traceback.print_exc()
-
 
         print(
             "ERROR:",
             repr(error)
         )
 
-
         print(
             "=====================================\n"
         )
 
 
-        raise HTTPException(
-
+        return JSONResponse(
             status_code=500,
+            content={
 
-            detail=(
-                "Sorry, the assistant had "
-                "trouble processing that."
-            )
+                "response":
+                    "Sorry, I couldn't connect to the assistant.",
+
+                "lead_status":
+                    "error",
+
+                "booking_status":
+                    "error"
+
+            }
         )
+
+
+# =====================================
+# HEALTH CHECK
+# =====================================
+
+@app.get(
+    "/health"
+)
+def health():
+
+    business = (
+        get_default_business()
+    )
+
+
+    return {
+
+        "status":
+            "ok",
+
+        "default_business":
+            (
+                business["slug"]
+                if business
+                else None
+            )
+
+    }
