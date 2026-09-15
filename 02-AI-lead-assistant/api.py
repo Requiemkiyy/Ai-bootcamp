@@ -1,7 +1,11 @@
 import os
+import re
 import html
 import json
 import traceback
+
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from fastapi import (
     FastAPI,
@@ -86,6 +90,158 @@ class CustomerMessage(BaseModel):
 
 
 # =====================================
+# BUSINESS TIMEZONE
+# =====================================
+
+BUSINESS_TIMEZONE = os.getenv(
+    "BUSINESS_TIMEZONE",
+    "America/New_York"
+)
+
+
+# =====================================
+# DATE CONTEXT
+# =====================================
+
+def add_date_context(
+    customer_message
+):
+
+    now = datetime.now(
+        ZoneInfo(
+            BUSINESS_TIMEZONE
+        )
+    )
+
+
+    today = now.date()
+
+    tomorrow = (
+        today
+        + timedelta(
+            days=1
+        )
+    )
+
+    day_after_tomorrow = (
+        today
+        + timedelta(
+            days=2
+        )
+    )
+
+
+    lower_message = (
+        customer_message.lower()
+    )
+
+
+    relative_dates = []
+
+
+    # =================================
+    # DAY AFTER TOMORROW
+    # =================================
+
+    if re.search(
+        r"\bday after tomorrow\b",
+        lower_message
+    ):
+
+        relative_dates.append(
+            "The phrase 'day after tomorrow' "
+            "means "
+            + day_after_tomorrow.strftime(
+                "%A, %B %d, %Y"
+            )
+            + " ("
+            + day_after_tomorrow.isoformat()
+            + ")."
+        )
+
+
+    # =================================
+    # TOMORROW
+    # =================================
+
+    elif re.search(
+        r"\btomorrow\b",
+        lower_message
+    ):
+
+        relative_dates.append(
+            "The word 'tomorrow' means "
+            + tomorrow.strftime(
+                "%A, %B %d, %Y"
+            )
+            + " ("
+            + tomorrow.isoformat()
+            + ")."
+        )
+
+
+    # =================================
+    # TODAY
+    # =================================
+
+    if re.search(
+        r"\btoday\b",
+        lower_message
+    ):
+
+        relative_dates.append(
+            "The word 'today' means "
+            + today.strftime(
+                "%A, %B %d, %Y"
+            )
+            + " ("
+            + today.isoformat()
+            + ")."
+        )
+
+
+    # =================================
+    # ALWAYS GIVE CURRENT DATE
+    # =================================
+
+    date_context = (
+        "\n\n"
+        "[DATE CONTEXT FROM BOOKING SERVER]\n"
+        "Current local date: "
+        + today.strftime(
+            "%A, %B %d, %Y"
+        )
+        + " ("
+        + today.isoformat()
+        + ")."
+    )
+
+
+    if relative_dates:
+
+        date_context += (
+            "\n"
+            + "\n".join(
+                relative_dates
+            )
+        )
+
+
+    date_context += (
+        "\nUse these resolved calendar dates "
+        "when interpreting the customer's "
+        "booking request. Do not calculate "
+        "a different date."
+    )
+
+
+    return (
+        customer_message
+        + date_context
+    )
+
+
+# =====================================
 # CHAT PAGE
 # =====================================
 
@@ -95,13 +251,17 @@ def build_chat_page(
 ):
 
     safe_business_name = html.escape(
-        str(business_name)
+        str(
+            business_name
+        )
     )
 
 
     javascript_business_slug = (
         json.dumps(
-            str(business_slug)
+            str(
+                business_slug
+            )
         )
     )
 
@@ -1041,9 +1201,7 @@ def message(
         # FIND BUSINESS
         # =================================
 
-        if (
-            customer.business_slug
-        ):
+        if customer.business_slug:
 
             business = (
                 get_business_by_slug(
@@ -1083,17 +1241,24 @@ def message(
 
 
         # =================================
-        # CLIENT IDENTITY
+        # RESOLVE RELATIVE DATES
         # =================================
 
-        client_ip = (
-            "unknown"
+        ai_customer_message = (
+            add_date_context(
+                customer_message
+            )
         )
 
 
-        if (
-            request.client
-        ):
+        # =================================
+        # CLIENT IDENTITY
+        # =================================
+
+        client_ip = "unknown"
+
+
+        if request.client:
 
             client_ip = (
                 request.client.host
@@ -1187,7 +1352,7 @@ def message(
             process_customer_message(
 
                 customer_message=
-                    customer_message,
+                    ai_customer_message,
 
                 session_id=
                     customer.session_id,
@@ -1221,7 +1386,9 @@ def message(
 
         print(
             "ERROR:",
-            repr(error)
+            repr(
+                error
+            )
         )
 
         print(
