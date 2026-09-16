@@ -10,6 +10,8 @@ from datetime import (
     timezone
 )
 
+from urllib.parse import parse_qs
+
 from fastapi import (
     APIRouter,
     Depends,
@@ -1843,7 +1845,7 @@ a {{ background:#333; color:#fff; }}
 <div class="card">
 <h1>Reschedule</h1>
 <p>{customer}</p>
-<form method="get" action="/dashboard/{slug}/appointments/{appointment_id}/reschedule/save">
+<form method="post" action="/dashboard/{slug}/appointments/{appointment_id}/reschedule/save">
 <label>New date</label>
 <input type="date" name="new_date" value="{current_date}" required>
 <label>New time</label>
@@ -1859,16 +1861,41 @@ a {{ background:#333; color:#fff; }}
 """)
 
 
-@router.get(
+@router.post(
     "/dashboard/{business_slug}/appointments/{appointment_id}/reschedule/save"
 )
-def save_rescheduled_appointment(
+async def save_rescheduled_appointment(
     business_slug: str,
     appointment_id: int,
-    request: Request,
-    new_date: str,
-    new_time: str
+    request: Request
 ):
+    raw_body = (
+        await request.body()
+    ).decode(
+        "utf-8"
+    )
+
+    form_data = parse_qs(
+        raw_body,
+        keep_blank_values=True
+    )
+
+    new_date = (
+        form_data.get(
+            "new_date",
+            [""]
+        )[0]
+        .strip()
+    )
+
+    new_time = (
+        form_data.get(
+            "new_time",
+            [""]
+        )[0]
+        .strip()
+    )
+
     business = get_business_by_slug(business_slug)
     if not business:
         raise HTTPException(status_code=404, detail="Business not found.")
