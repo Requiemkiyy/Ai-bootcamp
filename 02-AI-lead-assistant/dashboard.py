@@ -608,6 +608,36 @@ def get_business_appointments(
         conn.close()
 
 
+
+# =====================================
+# ADMIN BUSINESS LIST
+# =====================================
+
+def get_all_businesses():
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+
+        cursor.execute("""
+            SELECT
+                id,
+                name,
+                slug,
+                location,
+                active
+            FROM businesses
+            ORDER BY id DESC
+        """)
+
+        return cursor.fetchall()
+
+    finally:
+
+        conn.close()
+
+
 # =====================================
 # SERVICE PARSER
 # =====================================
@@ -1535,6 +1565,15 @@ td {
 
 <a
     class="button"
+    href="/b/__BUSINESS_SLUG_RAW__"
+    target="_blank"
+    rel="noopener noreferrer"
+>
+    View Chatbot
+</a>
+
+<a
+    class="button"
     href="/dashboard/__BUSINESS_SLUG_RAW__/settings"
 >
     Business Settings
@@ -1794,14 +1833,6 @@ body {{ font-family: Arial, sans-serif; background:#101010; color:#fff; margin:0
 h1 {{ margin-top:0; }}
 label {{ display:block; margin:18px 0 8px; color:#ccc; }}
 input {{ width:100%; box-sizing:border-box; padding:12px; border-radius:8px; border:1px solid #555; background:#111; color:#fff; }}
-input[type="date"],
-input[type="time"] {{ color-scheme: dark; }}
-input[type="date"]::-webkit-calendar-picker-indicator,
-input[type="time"]::-webkit-calendar-picker-indicator {{
-    filter: invert(1);
-    opacity: 1;
-    cursor: pointer;
-}}
 .actions {{ display:flex; gap:10px; margin-top:24px; }}
 button,a {{ padding:11px 16px; border:0; border-radius:8px; font-weight:700; text-decoration:none; cursor:pointer; }}
 button {{ background:#fff; color:#111; }}
@@ -2597,9 +2628,92 @@ async function saveSettings() {
 # ONBOARDING PAGE
 # =====================================
 
-def build_onboarding_page():
+def build_onboarding_page(
+    businesses
+):
 
-    return """
+    business_rows = ""
+
+    for business in businesses:
+
+        business_id = safe(
+            business["id"]
+        )
+
+        business_name = safe(
+            business["name"]
+        )
+
+        business_slug = safe(
+            business["slug"]
+        )
+
+        location = safe(
+            business["location"]
+        )
+
+        active_text = (
+            "Active"
+            if business["active"]
+            else "Inactive"
+        )
+
+        business_rows += f"""
+        <tr>
+            <td>{business_name}</td>
+            <td>{business_slug}</td>
+            <td>{location}</td>
+            <td>{active_text}</td>
+            <td>
+                <div class="business-actions">
+
+                    <a
+                        class="mini-button"
+                        href="/b/{business_slug}"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        View Chatbot
+                    </a>
+
+                    <a
+                        class="mini-button secondary"
+                        href="/dashboard/{business_slug}"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        View Dashboard
+                    </a>
+
+                    <form
+                        method="post"
+                        action="/admin/businesses/{business_id}/delete"
+                        onsubmit="return confirm('Permanently delete {business_name} and all of its data? This cannot be undone.');"
+                    >
+                        <button
+                            class="mini-button danger"
+                            type="submit"
+                        >
+                            Delete Business
+                        </button>
+                    </form>
+
+                </div>
+            </td>
+        </tr>
+        """
+
+    if not business_rows:
+
+        business_rows = """
+        <tr>
+            <td colspan="5">
+                No businesses yet.
+            </td>
+        </tr>
+        """
+
+    return f"""
 <!DOCTYPE html>
 
 <html lang="en">
@@ -2614,52 +2728,55 @@ def build_onboarding_page():
 >
 
 <title>
-    Add Business
+    Business Management
 </title>
-
 
 <style>
 
-* {
+* {{
     box-sizing: border-box;
-}
+}}
 
-body {
+body {{
     margin: 0;
     background: #101010;
     color: white;
     font-family: Arial, Helvetica, sans-serif;
-}
+}}
 
-.container {
-    max-width: 900px;
+.container {{
+    width: 95%;
+    max-width: 1200px;
     margin: 40px auto;
-    padding: 25px;
-}
+    padding-bottom: 60px;
+}}
 
-.panel {
+.panel {{
     background: #1c1c1c;
     padding: 30px;
     border-radius: 18px;
-}
+    margin-bottom: 28px;
+}}
 
-h1 {
+h1,
+h2 {{
     margin-top: 0;
-}
+}}
 
-p {
+p,
+.help {{
     color: #aaa;
-}
+}}
 
-label {
+label {{
     display: block;
     margin-top: 18px;
     margin-bottom: 7px;
     font-weight: bold;
-}
+}}
 
 input,
-textarea {
+textarea {{
     width: 100%;
     background: #292929;
     border: 1px solid #444;
@@ -2667,28 +2784,25 @@ textarea {
     padding: 12px;
     border-radius: 8px;
     font-size: 15px;
-}
+}}
 
-textarea {
+textarea {{
     min-height: 140px;
     resize: vertical;
-}
+}}
 
-.hours-grid {
+.hours-grid {{
     display: grid;
-    grid-template-columns:
-        150px
-        1fr
-        1fr;
+    grid-template-columns: 150px 1fr 1fr;
     gap: 10px;
     align-items: center;
-}
+}}
 
-.day {
+.day {{
     color: #ddd;
-}
+}}
 
-button {
+#createButton {{
     margin-top: 25px;
     border: none;
     background: white;
@@ -2697,33 +2811,92 @@ button {
     border-radius: 9px;
     font-weight: bold;
     cursor: pointer;
-}
+}}
 
-#result {
+#result {{
     margin-top: 22px;
     padding: 15px;
     border-radius: 10px;
     display: none;
     white-space: pre-wrap;
-}
+}}
 
-.success {
+.success {{
     background: #17341f;
-}
+}}
 
-.error {
+.error {{
     background: #481c1c;
-}
+}}
 
-.help {
+.table-wrap {{
+    overflow-x: auto;
+}}
+
+table {{
+    width: 100%;
+    min-width: 850px;
+    border-collapse: collapse;
+}}
+
+th {{
+    color: #aaa;
+    text-align: left;
+    padding: 12px;
+    border-bottom: 1px solid #333;
+}}
+
+td {{
+    padding: 14px 12px;
+    border-bottom: 1px solid #292929;
+}}
+
+.business-actions {{
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}}
+
+.business-actions form {{
+    margin: 0;
+}}
+
+.mini-button {{
+    display: inline-block;
+    border: 0;
+    border-radius: 8px;
+    padding: 9px 11px;
+    background: white;
+    color: #111;
+    text-decoration: none;
+    font-weight: bold;
     font-size: 13px;
-    color: #999;
-}
+    cursor: pointer;
+}}
+
+.mini-button.secondary {{
+    background: #dfe7ff;
+    color: #111;
+}}
+
+.mini-button.danger {{
+    background: #ffd7d7;
+    color: #351010;
+}}
+
+@media (
+    max-width: 700px
+) {{
+
+    .hours-grid {{
+        grid-template-columns: 1fr;
+    }}
+
+}}
 
 </style>
 
 </head>
-
 
 <body>
 
@@ -2732,13 +2905,47 @@ button {
 <div class="panel">
 
 <h1>
-    Add New Business
+    Business Management
 </h1>
+
+<p>
+    Manage every business using your AI assistant.
+</p>
+
+<div class="table-wrap">
+
+<table>
+
+<thead>
+<tr>
+    <th>Business</th>
+    <th>Slug</th>
+    <th>Location</th>
+    <th>Status</th>
+    <th>Actions</th>
+</tr>
+</thead>
+
+<tbody>
+{business_rows}
+</tbody>
+
+</table>
+
+</div>
+
+</div>
+
+
+<div class="panel">
+
+<h2>
+    Add New Business
+</h2>
 
 <p>
     Create a new AI assistant and owner dashboard.
 </p>
-
 
 <label>
     Business Name
@@ -2787,11 +2994,8 @@ button {
 
 <textarea
     id="services"
-    placeholder="Lawn Mowing|50|60
-Yard Cleanup|120|120
-Mulching|150|120"
+    placeholder="Lawn Mowing|50|60&#10;Yard Cleanup|120|120&#10;Mulching|150|120"
 ></textarea>
-
 
 <div class="help">
     One service per line:
@@ -2803,121 +3007,41 @@ Mulching|150|120"
     Business Hours
 </label>
 
-
 <div class="hours-grid">
 
-<div class="day">
-    Monday
-</div>
+<div class="day">Monday</div>
+<input id="day0Open" value="09:00">
+<input id="day0Close" value="17:00">
 
-<input
-    id="day0Open"
-    value="09:00"
->
+<div class="day">Tuesday</div>
+<input id="day1Open" value="09:00">
+<input id="day1Close" value="17:00">
 
-<input
-    id="day0Close"
-    value="17:00"
->
+<div class="day">Wednesday</div>
+<input id="day2Open" value="09:00">
+<input id="day2Close" value="17:00">
 
+<div class="day">Thursday</div>
+<input id="day3Open" value="09:00">
+<input id="day3Close" value="17:00">
 
-<div class="day">
-    Tuesday
-</div>
+<div class="day">Friday</div>
+<input id="day4Open" value="09:00">
+<input id="day4Close" value="17:00">
 
-<input
-    id="day1Open"
-    value="09:00"
->
+<div class="day">Saturday</div>
+<input id="day5Open" value="10:00">
+<input id="day5Close" value="14:00">
 
-<input
-    id="day1Close"
-    value="17:00"
->
-
-
-<div class="day">
-    Wednesday
-</div>
-
-<input
-    id="day2Open"
-    value="09:00"
->
-
-<input
-    id="day2Close"
-    value="17:00"
->
-
-
-<div class="day">
-    Thursday
-</div>
-
-<input
-    id="day3Open"
-    value="09:00"
->
-
-<input
-    id="day3Close"
-    value="17:00"
->
-
-
-<div class="day">
-    Friday
-</div>
-
-<input
-    id="day4Open"
-    value="09:00"
->
-
-<input
-    id="day4Close"
-    value="17:00"
->
-
-
-<div class="day">
-    Saturday
-</div>
-
-<input
-    id="day5Open"
-    value="10:00"
->
-
-<input
-    id="day5Close"
-    value="14:00"
->
-
-
-<div class="day">
-    Sunday
-</div>
-
-<input
-    id="day6Open"
-    placeholder="closed"
->
-
-<input
-    id="day6Close"
-    placeholder="closed"
->
-
+<div class="day">Sunday</div>
+<input id="day6Open" placeholder="closed">
+<input id="day6Close" placeholder="closed">
 
 </div>
-
 
 <div class="help">
     Leave both boxes empty for a closed day.
 </div>
-
 
 <button
     id="createButton"
@@ -2926,44 +3050,36 @@ Mulching|150|120"
     Create Business
 </button>
 
-
 <div id="result"></div>
 
-
 </div>
 
 </div>
-
 
 <script>
 
-
-async function createBusiness() {
+async function createBusiness() {{
 
     const resultBox =
         document.getElementById(
             "result"
         );
 
-
     const createButton =
         document.getElementById(
             "createButton"
         );
 
-
     const hours = [];
-
 
     for (
         let day = 0;
         day < 7;
         day++
-    ) {
+    ) {{
 
         hours.push(
             [
-
                 document
                     .getElementById(
                         "day"
@@ -2981,14 +3097,12 @@ async function createBusiness() {
                     )
                     .value
                     .trim()
-
             ]
         );
 
-    }
+    }}
 
-
-    const payload = {
+    const payload = {{
 
         business_name:
             document
@@ -3030,116 +3144,97 @@ async function createBusiness() {
 
         hours:
             hours
-
-    };
-
+    }};
 
     resultBox.style.display =
         "block";
 
-
     resultBox.className =
         "";
-
 
     resultBox.textContent =
         "Creating business...";
 
-
     createButton.disabled =
         true;
 
-
-    try {
+    try {{
 
         const response =
             await fetch(
                 "/admin/onboard",
-                {
-
+                {{
                     method:
                         "POST",
 
-                    headers: {
-
+                    headers: {{
                         "Content-Type":
                             "application/json"
-
-                    },
+                    }},
 
                     body:
                         JSON.stringify(
                             payload
                         )
-
-                }
+                }}
             );
-
 
         const data =
             await response.json();
 
-
-        if (!response.ok) {
+        if (!response.ok) {{
 
             resultBox.className =
                 "error";
-
 
             resultBox.textContent =
                 data.detail
                 ||
                 "Could not create business.";
 
-
             return;
 
-        }
-
+        }}
 
         resultBox.className =
             "success";
-
 
         resultBox.textContent =
             "BUSINESS CREATED\\n\\n"
             + "Name: "
             + data.business_name
             + "\\n"
-            + "Slug: "
-            + data.slug
-            + "\\n\\n"
-            + "Customer Bot:\\n"
+            + "Chatbot: "
             + data.chat_url
-            + "\\n\\n"
-            + "Owner Login:\\n"
-            + data.login_url
-            + "\\n\\n"
-            + "Owner Dashboard:\\n"
-            + data.dashboard_url;
+            + "\\n"
+            + "Owner Login: "
+            + data.login_url;
 
+        setTimeout(
+            function() {{
+                window.location.reload();
+            }},
+            900
+        );
 
-    } catch (
+    }} catch (
         error
-    ) {
+    ) {{
 
         resultBox.className =
             "error";
 
-
         resultBox.textContent =
             "Could not connect to server.";
 
-
-    } finally {
+    }} finally {{
 
         createButton.disabled =
             false;
 
-    }
+    }}
 
-}
-
+}}
 
 </script>
 
@@ -3359,7 +3454,9 @@ def onboarding_page(
 
 
     return HTMLResponse(
-        build_onboarding_page()
+        build_onboarding_page(
+            get_all_businesses()
+        )
     )
 
 
@@ -3872,6 +3969,119 @@ async def onboard_business(
             )
 
     }
+
+
+
+# =====================================
+# ADMIN DELETE BUSINESS
+# =====================================
+
+@router.post(
+    "/admin/businesses/{business_id}/delete"
+)
+def delete_business(
+    business_id: int,
+    credentials:
+        HTTPBasicCredentials
+        =
+        Depends(
+            admin_security
+        )
+):
+
+    verify_admin_login(
+        credentials
+    )
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+
+        cursor.execute("""
+            SELECT
+                id,
+                name,
+                slug
+            FROM businesses
+            WHERE id = ?
+            LIMIT 1
+        """, (
+            business_id,
+        ))
+
+        business = (
+            cursor.fetchone()
+        )
+
+        if not business:
+
+            raise HTTPException(
+                status_code=404,
+                detail=
+                    "Business not found."
+            )
+
+        # Delete all business-owned records first.
+        # This keeps old chatbot/dashboard links from retaining client data.
+        for table_name in (
+            "appointments",
+            "leads",
+            "chat_sessions",
+            "rate_limits",
+            "business_hours",
+            "services",
+            "business_users"
+        ):
+
+            cursor.execute(
+                "DELETE FROM "
+                + table_name
+                + " WHERE business_id = ?",
+                (
+                    business_id,
+                )
+            )
+
+        cursor.execute("""
+            DELETE FROM businesses
+            WHERE id = ?
+        """, (
+            business_id,
+        ))
+
+        conn.commit()
+
+    except HTTPException:
+
+        conn.rollback()
+        raise
+
+    except Exception as error:
+
+        conn.rollback()
+
+        print(
+            "DELETE BUSINESS ERROR:",
+            repr(
+                error
+            )
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail=
+                "Could not delete business."
+        )
+
+    finally:
+
+        conn.close()
+
+    return RedirectResponse(
+        url="/admin/onboard",
+        status_code=303
+    )
 
 
 # =====================================
