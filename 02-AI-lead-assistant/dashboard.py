@@ -751,6 +751,19 @@ def valid_time(
     )
 
 
+def format_time_12_hour(value):
+
+    if not value:
+        return ""
+
+    text = str(value).strip()
+
+    try:
+        return datetime.strptime(text[:5], "%H:%M").strftime("%I:%M %p").lstrip("0")
+    except ValueError:
+        return text
+
+
 # =====================================
 # LOGIN PAGE
 # =====================================
@@ -1102,6 +1115,31 @@ document
     return page
 
 
+def appointment_action_html(business, appointment):
+
+    current_status = str(appointment["status"] or "").lower()
+
+    if current_status in {"completed", "cancelled", "canceled"}:
+        return "—"
+
+    slug = safe(business["slug"])
+    appointment_id = safe(appointment["id"])
+
+    return f"""
+    <div class="appointment-actions">
+        <form method="post" action="/dashboard/{slug}/appointments/{appointment_id}/complete">
+            <button class="small-action complete" type="submit">Complete</button>
+        </form>
+        <form method="get" action="/dashboard/{slug}/appointments/{appointment_id}/reschedule">
+            <button class="small-action reschedule" type="submit">Reschedule</button>
+        </form>
+        <form method="post" action="/dashboard/{slug}/appointments/{appointment_id}/cancel" onsubmit="return confirm('Cancel this appointment?');">
+            <button class="small-action cancel" type="submit">Cancel</button>
+        </form>
+    </div>
+    """
+
+
 # =====================================
 # DASHBOARD HTML
 # =====================================
@@ -1186,7 +1224,7 @@ def build_dashboard_html(
             </td>
 
             <td>
-                {safe(appointment["appointment_time"])}
+                {safe(format_time_12_hour(appointment["appointment_time"]))}
             </td>
 
             <td>
@@ -1195,6 +1233,10 @@ def build_dashboard_html(
 
             <td>
                 {safe(appointment["status"])}
+            </td>
+
+            <td>
+                {appointment_action_html(business, appointment)}
             </td>
 
         </tr>
@@ -1206,7 +1248,7 @@ def build_dashboard_html(
         appointment_rows = """
         <tr>
 
-            <td colspan="8">
+            <td colspan="9">
                 No appointments yet.
             </td>
 
@@ -1415,6 +1457,38 @@ td {
     border-bottom: 1px solid #292929;
 }
 
+.appointment-actions {
+    display: flex;
+    gap: 7px;
+    flex-wrap: wrap;
+}
+
+.appointment-actions form {
+    margin: 0;
+}
+
+.small-action {
+    border: 0;
+    border-radius: 7px;
+    padding: 8px 10px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.small-action.complete {
+    background: #d9ffd9;
+    color: #102510;
+}
+
+.small-action.reschedule {
+    background: #dfe7ff;
+}
+
+.small-action.cancel {
+    background: #ffd7d7;
+    color: #351010;
+}
+
 @media (
     max-width: 700px
 ) {
@@ -1545,6 +1619,7 @@ td {
 <th>Time</th>
 <th>Duration</th>
 <th>Status</th>
+<th>Actions</th>
 </tr>
 
 </thead>
@@ -1664,6 +1739,152 @@ __LEAD_ROWS__
 
 
     return page
+
+
+@router.get(
+    "/dashboard/{business_slug}/appointments/{appointment_id}/reschedule",
+    response_class=HTMLResponse
+)
+def reschedule_appointment_page(
+    business_slug: str,
+    appointment_id: int,
+    request: Request
+):
+    business = get_business_by_slug(business_slug)
+    if not business:
+        raise HTTPException(status_code=404, detail="Business not found.")
+
+    if not require_owner_session(request, business):
+        return RedirectResponse(
+            url="/owner/login/" + business["slug"],
+            status_code=303
+        )
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT id, customer_name, appointment_date, appointment_time
+            FROM appointments
+            WHERE id = ? AND business_id = ?
+            LIMIT 1
+        """, (appointment_id, business["id"]))
+        appointment = cursor.fetchone()
+    finally:
+        conn.close()
+
+    if not appointment:
+        raise HTTPException(status_code=404, detail="Appointment not found.")
+
+    customer = safe(appointment["customer_name"])
+    current_date = safe(appointment["appointment_date"])
+    current_time = str(appointment["appointment_time"] or "")[:5]
+    slug = safe(business["slug"])
+
+    return HTMLResponse(f"""
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reschedule Appointment</title>
+<style>
+body {{ font-family: Arial, sans-serif; background:#101010; color:#fff; margin:0; padding:40px 20px; }}
+.card {{ max-width:520px; margin:0 auto; background:#1d1d1d; padding:28px; border-radius:18px; }}
+h1 {{ margin-top:0; }}
+label {{ display:block; margin:18px 0 8px; color:#ccc; }}
+input {{ width:100%; box-sizing:border-box; padding:12px; border-radius:8px; border:1px solid #555; background:#111; color:#fff; }}
+input[type="date"],
+input[type="time"] {{ color-scheme: dark; }}
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {{
+    filter: invert(1);
+    opacity: 1;
+    cursor: pointer;
+}}
+.actions {{ display:flex; gap:10px; margin-top:24px; }}
+button,a {{ padding:11px 16px; border:0; border-radius:8px; font-weight:700; text-decoration:none; cursor:pointer; }}
+button {{ background:#fff; color:#111; }}
+a {{ background:#333; color:#fff; }}
+</style>
+</head>
+<body>
+<div class="card">
+<h1>Reschedule</h1>
+<p>{customer}</p>
+<form method="get" action="/dashboard/{slug}/appointments/{appointment_id}/reschedule/save">
+<label>New date</label>
+<input type="date" name="new_date" value="{current_date}" required>
+<label>New time</label>
+<input type="time" name="new_time" value="{safe(current_time)}" required>
+<div class="actions">
+<button type="submit">Save New Time</button>
+<a href="/dashboard/{slug}">Back</a>
+</div>
+</form>
+</div>
+</body>
+</html>
+""")
+
+
+@router.get(
+    "/dashboard/{business_slug}/appointments/{appointment_id}/reschedule/save"
+)
+def save_rescheduled_appointment(
+    business_slug: str,
+    appointment_id: int,
+    request: Request,
+    new_date: str,
+    new_time: str
+):
+    business = get_business_by_slug(business_slug)
+    if not business:
+        raise HTTPException(status_code=404, detail="Business not found.")
+
+    if not require_owner_session(request, business):
+        return RedirectResponse(
+            url="/owner/login/" + business["slug"],
+            status_code=303
+        )
+
+    try:
+        datetime.strptime(new_date, "%Y-%m-%d")
+        datetime.strptime(new_time, "%H:%M")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date or time.")
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT id
+            FROM appointments
+            WHERE id = ? AND business_id = ?
+            LIMIT 1
+        """, (appointment_id, business["id"]))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="Appointment not found.")
+
+        cursor.execute("""
+            UPDATE appointments
+            SET appointment_date = ?, appointment_time = ?, status = ?
+            WHERE id = ? AND business_id = ?
+        """, (
+            new_date,
+            new_time,
+            "Booked",
+            appointment_id,
+            business["id"],
+        ))
+        conn.commit()
+    finally:
+        conn.close()
+
+    return RedirectResponse(
+        url="/dashboard/" + business["slug"],
+        status_code=303
+    )
 
 
 # =====================================
@@ -3767,6 +3988,104 @@ def business_dashboard(
             )
 
         )
+    )
+
+
+# =====================================
+# APPOINTMENT ACTIONS
+# =====================================
+
+def update_appointment_status(business_id, appointment_id, new_status):
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("""
+            SELECT id
+            FROM appointments
+            WHERE id = ?
+              AND business_id = ?
+            LIMIT 1
+        """, (
+            appointment_id,
+            business_id,
+        ))
+
+        if not cursor.fetchone():
+            return False
+
+        cursor.execute("""
+            UPDATE appointments
+            SET status = ?
+            WHERE id = ?
+              AND business_id = ?
+        """, (
+            new_status,
+            appointment_id,
+            business_id,
+        ))
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+
+@router.post(
+    "/dashboard/{business_slug}/appointments/{appointment_id}/complete"
+)
+def complete_appointment(
+    business_slug: str,
+    appointment_id: int,
+    request: Request
+):
+
+    business = get_business_by_slug(business_slug)
+
+    if not business:
+        raise HTTPException(status_code=404, detail="Business not found.")
+
+    if not require_owner_session(request, business):
+        return RedirectResponse(
+            url="/owner/login/" + business["slug"],
+            status_code=303
+        )
+
+    if not update_appointment_status(business["id"], appointment_id, "Completed"):
+        raise HTTPException(status_code=404, detail="Appointment not found.")
+
+    return RedirectResponse(
+        url="/dashboard/" + business["slug"],
+        status_code=303
+    )
+
+
+@router.post(
+    "/dashboard/{business_slug}/appointments/{appointment_id}/cancel"
+)
+def cancel_appointment(
+    business_slug: str,
+    appointment_id: int,
+    request: Request
+):
+
+    business = get_business_by_slug(business_slug)
+
+    if not business:
+        raise HTTPException(status_code=404, detail="Business not found.")
+
+    if not require_owner_session(request, business):
+        return RedirectResponse(
+            url="/owner/login/" + business["slug"],
+            status_code=303
+        )
+
+    if not update_appointment_status(business["id"], appointment_id, "Cancelled"):
+        raise HTTPException(status_code=404, detail="Appointment not found.")
+
+    return RedirectResponse(
+        url="/dashboard/" + business["slug"],
+        status_code=303
     )
 
 
