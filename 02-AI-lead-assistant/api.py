@@ -57,13 +57,31 @@ SESSION_SECRET = os.getenv(
 )
 
 
+# Keep local HTTP development working, while allowing
+# production to require HTTPS-only owner session cookies.
+COOKIE_SECURE = (
+    os.getenv(
+        "COOKIE_SECURE",
+        "false"
+    )
+    .strip()
+    .lower()
+    in (
+        "1",
+        "true",
+        "yes",
+        "on"
+    )
+)
+
+
 app.add_middleware(
     SessionMiddleware,
     secret_key=SESSION_SECRET,
     session_cookie="ai_business_owner_session",
     max_age=60 * 60 * 12,
     same_site="lax",
-    https_only=False
+    https_only=COOKIE_SECURE
 )
 
 
