@@ -1944,6 +1944,57 @@ Use exactly these keys:
 
 
         # =================================
+        # MISSING BOOKING INFORMATION
+        # =================================
+
+        # Never let model-generated internal booking instructions reach
+        # the customer when they are trying to book but required contact
+        # information is still missing. Ask for the missing fields
+        # deterministically instead.
+        if (
+            wants_booking is True
+            and
+            not lead_complete
+        ):
+
+            missing_fields = []
+
+            if customer_name == "Not provided":
+                missing_fields.append("name")
+
+            if phone_number == "Not provided":
+                missing_fields.append("phone number")
+
+            if requested_service == "Not provided":
+                missing_fields.append("service")
+
+            if len(missing_fields) == 1:
+                missing_text = missing_fields[0]
+
+            elif len(missing_fields) == 2:
+                missing_text = (
+                    missing_fields[0]
+                    + " and "
+                    + missing_fields[1]
+                )
+
+            else:
+                missing_text = (
+                    ", ".join(
+                        missing_fields[:-1]
+                    )
+                    + ", and "
+                    + missing_fields[-1]
+                )
+
+            suggested_reply = (
+                "Absolutely! To finish setting that up, "
+                "what's your "
+                + missing_text
+                + "?"
+            )
+
+        # =================================
         # SAVE LEAD
         # =================================
 
