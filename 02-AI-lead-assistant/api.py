@@ -1264,31 +1264,47 @@ def home():
         <section id="policies">
             <div class="wrap">
                 <div class="section-heading">
-                    <h2>Policies</h2>
-                    <p>Basic customer-facing policies for the ORVELIUS service. Your signed service agreement may contain additional terms.</p>
+                    <h2>Legal & Policies</h2>
+                    <p>Effective September 21, 2026. These terms apply to ORVELIUS business customers and use of the ORVELIUS AI Business Assistant.</p>
                 </div>
                 <div class="legal-grid">
                     <div class="card legal-card" id="terms">
                         <h3>Terms of Service</h3>
-                        <p>ORVELIUS provides subscription-based AI customer assistance software for businesses. Customers are responsible for providing accurate business information and reviewing information presented through their configured assistant.</p>
-                        <p>Service availability may be affected by maintenance, third-party providers, internet availability, or other technical conditions. ORVELIUS does not guarantee a specific number of leads, appointments, sales, or revenue.</p>
-                        <p>Customers must use the service lawfully and may not abuse, disrupt, or attempt unauthorized access to the service or other systems.</p>
+                        <p><strong>Subscription.</strong> ORVELIUS provides subscription-based AI customer assistance software for businesses. The current standard plan is $149 USD per month, billed automatically on a recurring monthly basis until cancelled. Applicable taxes may be added where required.</p>
+                        <p><strong>Service.</strong> The service may include an AI customer assistant, lead capture, appointment-request and booking features, an owner dashboard, and tools for managing business services, pricing, and hours. Features may evolve as the service is improved.</p>
+                        <p><strong>Customer responsibilities.</strong> Customers must provide accurate and lawful business information, maintain appropriate access credentials, review their configured assistant and business settings, and use information collected through ORVELIUS in accordance with applicable law. Customers are responsible for determining whether the service is suitable for their business.</p>
+                        <p><strong>AI limitations.</strong> AI-generated responses may occasionally be inaccurate, incomplete, or unexpected. ORVELIUS does not guarantee that every message, lead, appointment request, or automated response will be error-free. Customers should independently review important business, legal, financial, safety, or other high-impact information.</p>
+                        <p><strong>No results guarantee.</strong> ORVELIUS does not guarantee any specific number of leads, appointments, customers, sales, revenue, profit, or other business result.</p>
+                        <p><strong>Acceptable use.</strong> Customers may not use the service for unlawful, fraudulent, abusive, deceptive, infringing, or harmful activity; attempt unauthorized access; interfere with service operation; or use the service in a manner that violates third-party rights.</p>
+                        <p><strong>Availability and third parties.</strong> Availability may be affected by maintenance, internet or hosting failures, AI providers, payment processors, database providers, or other third-party systems. ORVELIUS may modify, maintain, suspend, or discontinue portions of the service when reasonably necessary.</p>
+                        <p><strong>Payment and suspension.</strong> Customers authorize recurring charges associated with their selected subscription. If payment fails or remains unpaid, ORVELIUS may restrict or suspend access until the account is brought current.</p>
+                        <p><strong>Intellectual property.</strong> ORVELIUS retains ownership of its software, platform, designs, systems, and related intellectual property. Customers retain ownership of business information and content they provide, subject to the rights reasonably necessary for ORVELIUS and its service providers to host, process, transmit, and display that information to provide the service.</p>
+                        <p><strong>Limitation of liability.</strong> To the maximum extent permitted by applicable law, ORVELIUS will not be liable for indirect, incidental, special, consequential, exemplary, or lost-profit damages arising from use of or inability to use the service. To the maximum extent permitted by applicable law, ORVELIUS's aggregate liability arising from the service will not exceed the amounts paid by the customer to ORVELIUS during the three months immediately preceding the event giving rise to the claim.</p>
+                        <p><strong>Governing law.</strong> These Terms are governed by the laws of the State of Ohio, without regard to conflict-of-law principles, except where applicable law requires otherwise.</p>
+                        <p><strong>Changes.</strong> ORVELIUS may update these Terms from time to time. Material changes will be reflected by an updated effective date and, when appropriate, additional notice.</p>
+                        <p><strong>Contact.</strong> Questions about these Terms may be sent to support@orvelius.com.</p>
                     </div>
                     <div class="card legal-card" id="privacy">
                         <h3>Privacy Policy</h3>
-                        <p>ORVELIUS may process information submitted through the service, such as customer names, contact information, service requests, appointment details, and business configuration information, to provide and operate the service.</p>
-                        <p>Information may be processed by infrastructure, database, payment, and AI service providers used to operate ORVELIUS. ORVELIUS does not sell customer personal information.</p>
-                        <p>Businesses using ORVELIUS are responsible for their own privacy obligations relating to their customers and their use of collected information.</p>
+                        <p><strong>Information processed.</strong> ORVELIUS may process business account information and information submitted through customer-facing assistants, including names, phone numbers, email addresses, service requests, appointment details, messages, and business configuration information.</p>
+                        <p><strong>How information is used.</strong> Information is used to provide, secure, maintain, troubleshoot, and improve the service; operate lead and appointment functionality; communicate with customers; process subscriptions; and comply with legal obligations.</p>
+                        <p><strong>Service providers.</strong> Information may be processed by third-party providers used to operate ORVELIUS, including hosting, database, AI, email, and payment providers. Those providers process information according to their applicable terms and privacy practices.</p>
+                        <p><strong>Selling information.</strong> ORVELIUS does not sell personal information submitted through the service.</p>
+                        <p><strong>Business customers.</strong> Businesses using ORVELIUS are responsible for their own privacy notices, legal obligations, permissions, and handling of information relating to their end customers.</p>
+                        <p><strong>Security and retention.</strong> ORVELIUS uses reasonable technical and organizational measures intended to protect information, but no internet service can guarantee absolute security. Information may be retained for as long as reasonably necessary to provide the service, maintain records, resolve disputes, enforce agreements, and comply with law.</p>
+                        <p><strong>Requests and contact.</strong> Privacy questions or requests may be sent to support@orvelius.com. ORVELIUS may need to verify a request before acting on it.</p>
                     </div>
                     <div class="card legal-card" id="cancellation">
                         <h3>Cancellation Policy</h3>
-                        <p>Monthly subscriptions may be cancelled before the next renewal to prevent future recurring charges. Unless otherwise required by law or agreed in writing, cancellation takes effect at the end of the current paid billing period.</p>
-                        <p>Access to subscription features may end when the paid service period expires.</p>
+                        <p>Customers may cancel a monthly subscription at any time before the next renewal. Cancellation prevents future renewal charges and generally becomes effective at the end of the current paid billing period.</p>
+                        <p>Customers may continue using paid subscription features through the end of that billing period unless access is suspended for nonpayment, misuse, security reasons, or another permitted reason. Access may end when the paid period expires.</p>
+                        <p>Cancellation requests may be made through any cancellation method ORVELIUS makes available or by contacting support@orvelius.com.</p>
                     </div>
                     <div class="card legal-card" id="refunds">
                         <h3>Refund Policy</h3>
-                        <p>Subscription charges are generally non-refundable once a billing period has begun, except where required by law or otherwise agreed in writing. If a billing error occurs, contact ORVELIUS so the issue can be reviewed.</p>
-                        <p>Any separately agreed setup, custom development, or onboarding fees are governed by the applicable service agreement.</p>
+                        <p>Monthly subscription charges are generally non-refundable once a billing period begins, and ORVELIUS does not ordinarily provide prorated refunds or credits for unused time after cancellation.</p>
+                        <p>Exceptions may be made where required by applicable law, where a billing error occurred, or at ORVELIUS's discretion. Customers should contact support@orvelius.com promptly regarding suspected billing errors.</p>
+                        <p>Any separately agreed setup, onboarding, customization, or development fee will be governed by the written terms presented for that work.</p>
                     </div>
                 </div>
             </div>
