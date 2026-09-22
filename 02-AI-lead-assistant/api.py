@@ -1177,7 +1177,7 @@ def home():
                 <a href="#features">Features</a>
                 <a href="#pricing">Pricing</a>
                 <a href="#policies">Policies</a>
-                <a class="button" href="#contact">Get Started</a>
+                <a class="button" href="https://buy.stripe.com/28E4gr7p4eVrg6G9w6g7e00">Get Started</a>
             </div>
         </div>
     </nav>
@@ -1193,7 +1193,7 @@ def home():
                     help customers schedule appointments.
                 </p>
                 <div class="hero-actions">
-                    <a class="button" href="#contact">Get Started</a>
+                    <a class="button" href="https://buy.stripe.com/28E4gr7p4eVrg6G9w6g7e00">Get Started</a>
                     <a class="button secondary" href="#features">See What It Does</a>
                 </div>
             </div>
@@ -1243,7 +1243,7 @@ def home():
                         <li>Private owner dashboard</li>
                         <li>Service, price, and hours management</li>
                     </ul>
-                    <a class="button" href="#contact">Contact ORVELIUS</a>
+                    <a class="button" href="https://buy.stripe.com/28E4gr7p4eVrg6G9w6g7e00">Subscribe Now</a>
                 </div>
             </div>
         </section>
