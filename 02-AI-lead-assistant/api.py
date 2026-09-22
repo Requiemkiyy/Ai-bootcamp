@@ -1058,7 +1058,7 @@ messageInput.focus();
 
 
 # =====================================
-# DEFAULT CHAT
+# NEXORA AI WEBSITE
 # =====================================
 
 @app.get(
@@ -1067,32 +1067,243 @@ messageInput.focus();
 )
 def home():
 
-    business = (
-        get_default_business()
-    )
-
-
-    if not business:
-
-        return HTMLResponse(
-            content="""
-                <html>
-                    <body>
-                        <h1>
-                            Business unavailable
-                        </h1>
-                    </body>
-                </html>
-            """,
-            status_code=404
-        )
-
-
     return HTMLResponse(
-        content=build_chat_page(
-            business["name"],
-            business["slug"]
-        )
+        content="""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="ORVELIUS provides AI-powered customer assistants for local service businesses, helping capture leads, answer customer questions, and schedule appointments.">
+    <title>ORVELIUS | AI Customer Assistants for Businesses</title>
+
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html { scroll-behavior: smooth; }
+        body {
+            background: #09090b;
+            color: #f5f5f5;
+            font-family: Arial, Helvetica, sans-serif;
+            line-height: 1.6;
+        }
+        a { color: inherit; text-decoration: none; }
+        .wrap { width: min(1120px, calc(100% - 40px)); margin: 0 auto; }
+        nav {
+            position: sticky; top: 0; z-index: 20;
+            background: rgba(9,9,11,.92);
+            border-bottom: 1px solid #25252b;
+            backdrop-filter: blur(12px);
+        }
+        .nav-inner {
+            min-height: 72px; display: flex; align-items: center;
+            justify-content: space-between; gap: 20px;
+        }
+        .brand { font-size: 22px; font-weight: 800; letter-spacing: -.5px; }
+        .nav-links { display: flex; align-items: center; gap: 24px; color: #c7c7ce; font-size: 14px; }
+        .button {
+            display: inline-flex; align-items: center; justify-content: center;
+            min-height: 48px; padding: 0 22px; border-radius: 10px;
+            background: #fff; color: #09090b; font-weight: 700;
+        }
+        .button.secondary { background: transparent; color: #fff; border: 1px solid #34343c; }
+        .hero { padding: 110px 0 90px; text-align: center; }
+        .eyebrow {
+            display: inline-block; margin-bottom: 22px; padding: 7px 12px;
+            border: 1px solid #303038; border-radius: 999px;
+            color: #c9c9d1; font-size: 13px;
+        }
+        .hero h1 {
+            max-width: 850px; margin: 0 auto;
+            font-size: clamp(42px,7vw,76px); line-height: 1.02; letter-spacing: -3px;
+        }
+        .hero p {
+            max-width: 690px; margin: 26px auto 0;
+            color: #aaaab3; font-size: 19px;
+        }
+        .hero-actions {
+            margin-top: 34px; display: flex; justify-content: center;
+            flex-wrap: wrap; gap: 12px;
+        }
+        section { padding: 85px 0; border-top: 1px solid #202026; }
+        .section-heading { max-width: 680px; margin-bottom: 42px; }
+        .section-heading h2 {
+            font-size: clamp(30px,4vw,46px); line-height: 1.1; letter-spacing: -1.5px;
+        }
+        .section-heading p { margin-top: 14px; color: #aaaab3; font-size: 17px; }
+        .grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 18px; }
+        .card {
+            padding: 28px; border: 1px solid #292930;
+            border-radius: 16px; background: #111114;
+        }
+        .card h3 { margin-bottom: 10px; font-size: 19px; }
+        .card p { color: #a9a9b2; font-size: 15px; }
+        .steps { counter-reset: step; }
+        .step::before {
+            counter-increment: step; content: "0" counter(step);
+            display: block; margin-bottom: 18px; color: #777782;
+            font-weight: 700; font-size: 13px;
+        }
+        .pricing {
+            max-width: 620px; margin: 0 auto; padding: 42px;
+            border: 1px solid #34343d; border-radius: 20px; background: #111114;
+        }
+        .price { margin: 20px 0 4px; font-size: 52px; font-weight: 800; letter-spacing: -2px; }
+        .price span { color: #9b9ba5; font-size: 17px; font-weight: 400; letter-spacing: 0; }
+        .pricing ul { margin: 28px 0; padding-left: 20px; color: #c7c7ce; }
+        .pricing li { margin: 10px 0; }
+        .pricing .button { width: 100%; }
+        .legal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+        .legal-card p { margin-bottom: 12px; color: #a9a9b2; font-size: 14px; }
+        footer {
+            padding: 45px 0; border-top: 1px solid #202026;
+            color: #888892; font-size: 14px;
+        }
+        .footer-inner { display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+        @media (max-width: 780px) {
+            .nav-links a:not(.button) { display: none; }
+            .hero { padding: 80px 0 70px; }
+            .hero h1 { letter-spacing: -2px; }
+            .grid, .legal-grid { grid-template-columns: 1fr; }
+            section { padding: 65px 0; }
+            .pricing { padding: 28px; }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="wrap nav-inner">
+            <a class="brand" href="/">ORVELIUS</a>
+            <div class="nav-links">
+                <a href="#features">Features</a>
+                <a href="#pricing">Pricing</a>
+                <a href="#policies">Policies</a>
+                <a class="button" href="#contact">Get Started</a>
+            </div>
+        </div>
+    </nav>
+
+    <main>
+        <header class="hero">
+            <div class="wrap">
+                <div class="eyebrow">AI customer assistance for service businesses</div>
+                <h1>Turn customer conversations into booked business.</h1>
+                <p>
+                    ORVELIUS gives local service businesses an AI-powered customer
+                    assistant that can answer service questions, capture leads, and
+                    help customers schedule appointments.
+                </p>
+                <div class="hero-actions">
+                    <a class="button" href="#contact">Get Started</a>
+                    <a class="button secondary" href="#features">See What It Does</a>
+                </div>
+            </div>
+        </header>
+
+        <section id="features">
+            <div class="wrap">
+                <div class="section-heading">
+                    <h2>Built to handle the conversations that turn into customers.</h2>
+                    <p>Your assistant uses your business information, services, pricing, and hours to help customers around the clock.</p>
+                </div>
+                <div class="grid">
+                    <div class="card"><h3>AI Customer Support</h3><p>Answer common questions about services, pricing, availability, and business information.</p></div>
+                    <div class="card"><h3>Lead Capture</h3><p>Collect customer contact information and service requests so opportunities are not lost.</p></div>
+                    <div class="card"><h3>Appointment Booking</h3><p>Help customers request available appointment times based on your services and business hours.</p></div>
+                    <div class="card"><h3>Owner Dashboard</h3><p>View leads and appointments from a private business dashboard.</p></div>
+                    <div class="card"><h3>Business Controls</h3><p>Update services, prices, and operating hours without rebuilding the assistant.</p></div>
+                    <div class="card"><h3>Business-Specific Setup</h3><p>Each assistant is configured around the individual business instead of using generic answers.</p></div>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <div class="wrap">
+                <div class="section-heading">
+                    <h2>Simple setup.</h2>
+                    <p>Get from business information to a working customer assistant without a complicated software rollout.</p>
+                </div>
+                <div class="grid steps">
+                    <div class="card step"><h3>Tell us about your business</h3><p>Provide your services, prices, operating hours, and other information customers need.</p></div>
+                    <div class="card step"><h3>We configure your assistant</h3><p>Your business gets its own customer-facing assistant and private management dashboard.</p></div>
+                    <div class="card step"><h3>Start handling customers</h3><p>Customers can ask questions, submit their information, and request appointments.</p></div>
+                </div>
+            </div>
+        </section>
+
+        <section id="pricing">
+            <div class="wrap">
+                <div class="pricing">
+                    <p class="eyebrow">AI Business Assistant</p>
+                    <h2>One straightforward monthly plan.</h2>
+                    <div class="price">$149 <span>/ month</span></div>
+                    <ul>
+                        <li>AI customer assistant</li>
+                        <li>Lead capture</li>
+                        <li>Appointment booking</li>
+                        <li>Private owner dashboard</li>
+                        <li>Service, price, and hours management</li>
+                    </ul>
+                    <a class="button" href="#contact">Contact ORVELIUS</a>
+                </div>
+            </div>
+        </section>
+
+        <section id="contact">
+            <div class="wrap">
+                <div class="section-heading">
+                    <h2>Interested in ORVELIUS?</h2>
+                    <p>Contact ORVELIUS to discuss your business and determine whether the AI Business Assistant fits your customer workflow.</p>
+                </div>
+                <div class="card">
+                    <h3>Customer support and sales</h3>
+                    <p>Email: support@orvelius.com</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="policies">
+            <div class="wrap">
+                <div class="section-heading">
+                    <h2>Policies</h2>
+                    <p>Basic customer-facing policies for the ORVELIUS service. Your signed service agreement may contain additional terms.</p>
+                </div>
+                <div class="legal-grid">
+                    <div class="card legal-card" id="terms">
+                        <h3>Terms of Service</h3>
+                        <p>ORVELIUS provides subscription-based AI customer assistance software for businesses. Customers are responsible for providing accurate business information and reviewing information presented through their configured assistant.</p>
+                        <p>Service availability may be affected by maintenance, third-party providers, internet availability, or other technical conditions. ORVELIUS does not guarantee a specific number of leads, appointments, sales, or revenue.</p>
+                        <p>Customers must use the service lawfully and may not abuse, disrupt, or attempt unauthorized access to the service or other systems.</p>
+                    </div>
+                    <div class="card legal-card" id="privacy">
+                        <h3>Privacy Policy</h3>
+                        <p>ORVELIUS may process information submitted through the service, such as customer names, contact information, service requests, appointment details, and business configuration information, to provide and operate the service.</p>
+                        <p>Information may be processed by infrastructure, database, payment, and AI service providers used to operate ORVELIUS. ORVELIUS does not sell customer personal information.</p>
+                        <p>Businesses using ORVELIUS are responsible for their own privacy obligations relating to their customers and their use of collected information.</p>
+                    </div>
+                    <div class="card legal-card" id="cancellation">
+                        <h3>Cancellation Policy</h3>
+                        <p>Monthly subscriptions may be cancelled before the next renewal to prevent future recurring charges. Unless otherwise required by law or agreed in writing, cancellation takes effect at the end of the current paid billing period.</p>
+                        <p>Access to subscription features may end when the paid service period expires.</p>
+                    </div>
+                    <div class="card legal-card" id="refunds">
+                        <h3>Refund Policy</h3>
+                        <p>Subscription charges are generally non-refundable once a billing period has begun, except where required by law or otherwise agreed in writing. If a billing error occurs, contact ORVELIUS so the issue can be reviewed.</p>
+                        <p>Any separately agreed setup, custom development, or onboarding fees are governed by the applicable service agreement.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="wrap footer-inner">
+            <div>© 2026 ORVELIUS. All rights reserved.</div>
+            <div><a href="#terms">Terms</a> · <a href="#privacy">Privacy</a> · <a href="#cancellation">Cancellation</a> · <a href="#refunds">Refunds</a></div>
+        </div>
+    </footer>
+</body>
+</html>
+        """
     )
 
 
