@@ -1324,6 +1324,115 @@ def home():
 
 
 # =====================================
+# PUBLIC LEGAL PAGES
+# =====================================
+
+def _legal_page(title: str, body: str):
+    return HTMLResponse(
+        content=f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{title} | ORVELIUS</title>
+    <style>
+        * {{ box-sizing: border-box; }}
+        body {{ margin: 0; background: #090b10; color: #eef1f7; font-family: Arial, Helvetica, sans-serif; line-height: 1.7; }}
+        .wrap {{ width: min(900px, calc(100% - 40px)); margin: 0 auto; }}
+        header {{ border-bottom: 1px solid #242936; padding: 24px 0; }}
+        .brand {{ color: #fff; font-weight: 800; letter-spacing: .16em; text-decoration: none; }}
+        main {{ padding: 64px 0 80px; }}
+        h1 {{ font-size: clamp(2rem, 5vw, 3.5rem); margin: 0 0 8px; }}
+        .effective {{ color: #9ca6b8; margin-bottom: 38px; }}
+        h2 {{ margin-top: 34px; font-size: 1.2rem; }}
+        p {{ color: #c8ceda; }}
+        a {{ color: #fff; }}
+        footer {{ border-top: 1px solid #242936; padding: 26px 0; color: #8f98aa; }}
+        .links a {{ margin-right: 18px; }}
+    </style>
+</head>
+<body>
+<header><div class="wrap"><a class="brand" href="/">ORVELIUS</a></div></header>
+<main><div class="wrap">
+    <h1>{title}</h1>
+    <p class="effective">Effective September 21, 2026</p>
+    {body}
+</div></main>
+<footer><div class="wrap links"><a href="/">Home</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a></div></footer>
+</body>
+</html>
+        """
+    )
+
+
+@app.get("/terms", response_class=HTMLResponse)
+def terms_of_service():
+    return _legal_page(
+        "Terms of Service",
+        """
+        <h2>Subscription</h2>
+        <p>ORVELIUS provides subscription-based AI customer assistance software for businesses. The current standard plan is $149 USD per month, billed automatically on a recurring monthly basis until cancelled. Applicable taxes may be added where required.</p>
+        <h2>Service</h2>
+        <p>The service may include an AI customer assistant, lead capture, appointment-request and booking features, an owner dashboard, and tools for managing business services, pricing, and hours. Features may evolve as the service is improved.</p>
+        <h2>Customer responsibilities</h2>
+        <p>Customers must provide accurate and lawful business information, maintain appropriate access credentials, review their configured assistant and business settings, and use information collected through ORVELIUS in accordance with applicable law. Customers are responsible for determining whether the service is suitable for their business.</p>
+        <h2>AI limitations</h2>
+        <p>AI-generated responses may occasionally be inaccurate, incomplete, or unexpected. ORVELIUS does not guarantee that every message, lead, appointment request, or automated response will be error-free. Customers should independently review important business, legal, financial, safety, or other high-impact information.</p>
+        <h2>No results guarantee</h2>
+        <p>ORVELIUS does not guarantee any specific number of leads, appointments, customers, sales, revenue, profit, or other business result.</p>
+        <h2>Acceptable use</h2>
+        <p>Customers may not use the service for unlawful, fraudulent, abusive, deceptive, infringing, or harmful activity; attempt unauthorized access; interfere with service operation; or use the service in a manner that violates third-party rights.</p>
+        <h2>Availability and third parties</h2>
+        <p>Availability may be affected by maintenance, internet or hosting failures, AI providers, payment processors, database providers, or other third-party systems. ORVELIUS may modify, maintain, suspend, or discontinue portions of the service when reasonably necessary.</p>
+        <h2>Payment and suspension</h2>
+        <p>Customers authorize recurring charges associated with their selected subscription. If payment fails or remains unpaid, ORVELIUS may restrict or suspend access until the account is brought current.</p>
+        <h2>Cancellation and refunds</h2>
+        <p>Customers may cancel a monthly subscription at any time before the next renewal. Cancellation prevents future renewal charges and generally becomes effective at the end of the current paid billing period. Monthly subscription charges are generally non-refundable once a billing period begins, and ORVELIUS does not ordinarily provide prorated refunds or credits for unused time after cancellation. Exceptions may be made where required by applicable law, where a billing error occurred, or at ORVELIUS's discretion. Cancellation or billing questions may be sent to support@orvelius.com.</p>
+        <h2>Intellectual property</h2>
+        <p>ORVELIUS retains ownership of its software, platform, designs, systems, and related intellectual property. Customers retain ownership of business information and content they provide, subject to the rights reasonably necessary for ORVELIUS and its service providers to host, process, transmit, and display that information to provide the service.</p>
+        <h2>Limitation of liability</h2>
+        <p>To the maximum extent permitted by applicable law, ORVELIUS will not be liable for indirect, incidental, special, consequential, exemplary, or lost-profit damages arising from use of or inability to use the service. To the maximum extent permitted by applicable law, ORVELIUS's aggregate liability arising from the service will not exceed the amounts paid by the customer to ORVELIUS during the three months immediately preceding the event giving rise to the claim.</p>
+        <h2>Governing law</h2>
+        <p>These Terms are governed by the laws of the State of Ohio, without regard to conflict-of-law principles, except where applicable law requires otherwise.</p>
+        <h2>Changes</h2>
+        <p>ORVELIUS may update these Terms from time to time. Material changes will be reflected by an updated effective date and, when appropriate, additional notice.</p>
+        <h2>Contact</h2>
+        <p>Questions about these Terms may be sent to <a href="mailto:support@orvelius.com">support@orvelius.com</a>.</p>
+        """
+    )
+
+
+@app.get("/privacy", response_class=HTMLResponse)
+def privacy_policy():
+    return _legal_page(
+        "Privacy Policy",
+        """
+        <h2>Information processed</h2>
+        <p>ORVELIUS may process business account information and information submitted through customer-facing assistants, including names, phone numbers, email addresses, service requests, appointment details, messages, and business configuration information.</p>
+        <h2>How information is used</h2>
+        <p>Information is used to provide, secure, maintain, troubleshoot, and improve the service; operate lead and appointment functionality; communicate with customers; process subscriptions; and comply with legal obligations.</p>
+        <h2>Service providers and disclosure</h2>
+        <p>Information may be processed or disclosed to third-party providers used to operate ORVELIUS, including hosting, database, AI, email, and payment providers, as reasonably necessary to provide the service. Information may also be disclosed when required by law, to protect rights or security, or in connection with a business transfer. Those providers process information according to their applicable terms and privacy practices.</p>
+        <h2>Selling information</h2>
+        <p>ORVELIUS does not sell personal information submitted through the service.</p>
+        <h2>Business customers</h2>
+        <p>Businesses using ORVELIUS are responsible for their own privacy notices, legal obligations, permissions, and handling of information relating to their end customers.</p>
+        <h2>Security</h2>
+        <p>ORVELIUS uses reasonable technical and organizational measures intended to safeguard information. However, no internet service or method of electronic storage can guarantee absolute security.</p>
+        <h2>Retention</h2>
+        <p>Information may be retained for as long as reasonably necessary to provide the service, maintain records, resolve disputes, enforce agreements, and comply with legal obligations.</p>
+        <h2>Your choices and requests</h2>
+        <p>Privacy questions or requests concerning access, correction, or deletion may be sent to support@orvelius.com. ORVELIUS may need to verify a request before acting on it, and some information may be retained where legally permitted or required.</p>
+        <h2>Changes</h2>
+        <p>ORVELIUS may update this Privacy Policy from time to time. Changes will be reflected by an updated effective date and, when appropriate, additional notice.</p>
+        <h2>Contact</h2>
+        <p>Privacy questions or requests may be sent to <a href="mailto:support@orvelius.com">support@orvelius.com</a>.</p>
+        """
+    )
+
+
+# =====================================
 # BUSINESS CHAT
 # =====================================
 
