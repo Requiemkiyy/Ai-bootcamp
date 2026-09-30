@@ -1314,7 +1314,7 @@ def home():
     <footer>
         <div class="wrap footer-inner">
             <div>© 2026 ORVELIUS. All rights reserved.</div>
-            <div><a href="#terms">Terms</a> · <a href="#privacy">Privacy</a> · <a href="#cancellation">Cancellation</a> · <a href="#refunds">Refunds</a></div>
+            <div><a href="/terms">Terms</a> · <a href="/privacy">Privacy</a> · <a href="/cancellation">Cancellation</a> · <a href="/refund">Refunds</a></div>
         </div>
     </footer>
 </body>
@@ -1359,7 +1359,7 @@ def _legal_page(title: str, body: str):
     <p class="effective">Effective September 21, 2026</p>
     {body}
 </div></main>
-<footer><div class="wrap links"><a href="/">Home</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a></div></footer>
+<footer><div class="wrap links"><a href="/">Home</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/cancellation">Cancellation</a><a href="/refund">Refunds</a></div></footer>
 </body>
 </html>
         """
@@ -1428,6 +1428,44 @@ def privacy_policy():
         <p>ORVELIUS may update this Privacy Policy from time to time. Changes will be reflected by an updated effective date and, when appropriate, additional notice.</p>
         <h2>Contact</h2>
         <p>Privacy questions or requests may be sent to <a href="mailto:support@orvelius.com">support@orvelius.com</a>.</p>
+        """
+    )
+
+
+@app.get("/cancellation", response_class=HTMLResponse)
+def cancellation_policy():
+    return _legal_page(
+        "Cancellation Policy",
+        """
+        <h2>Cancel anytime</h2>
+        <p>Customers may cancel a monthly ORVELIUS subscription at any time before the next renewal. Cancellation prevents future renewal charges and generally becomes effective at the end of the current paid billing period.</p>
+        <h2>Access after cancellation</h2>
+        <p>Customers may continue using paid subscription features through the end of the current paid billing period unless access is suspended for nonpayment, misuse, security reasons, or another permitted reason. Access may end when that paid period expires.</p>
+        <h2>How to cancel</h2>
+        <p>Cancellation requests may be made through any cancellation method ORVELIUS makes available or by contacting <a href="mailto:support@orvelius.com">support@orvelius.com</a>.</p>
+        <h2>Refunds</h2>
+        <p>Cancellation does not automatically create a refund for amounts already paid. Please review the <a href="/refund">Refund Policy</a> for additional information.</p>
+        <h2>Contact</h2>
+        <p>Questions about cancellation may be sent to <a href="mailto:support@orvelius.com">support@orvelius.com</a>.</p>
+        """
+    )
+
+
+@app.get("/refund", response_class=HTMLResponse)
+def refund_policy():
+    return _legal_page(
+        "Refund Policy",
+        """
+        <h2>Monthly subscriptions</h2>
+        <p>Monthly subscription charges are generally non-refundable once a billing period begins. ORVELIUS does not ordinarily provide prorated refunds or credits for unused time after cancellation.</p>
+        <h2>Exceptions</h2>
+        <p>Exceptions may be made where required by applicable law, where a billing error occurred, or at ORVELIUS's discretion. Customers should contact ORVELIUS promptly regarding suspected billing errors.</p>
+        <h2>Other fees</h2>
+        <p>Any separately agreed setup, onboarding, customization, or development fee will be governed by the written terms presented for that work.</p>
+        <h2>Cancellation</h2>
+        <p>For information about stopping future subscription renewals, please review the <a href="/cancellation">Cancellation Policy</a>.</p>
+        <h2>Contact</h2>
+        <p>Refund or billing questions may be sent to <a href="mailto:support@orvelius.com">support@orvelius.com</a>.</p>
         """
     )
 
